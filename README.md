@@ -18,19 +18,34 @@ An Agent Skill is only as good as the improvement it produces. Right now, skill 
 
 ## How it works
 
-SkillBenchmark runs each task N times. Each run produces two outputs: one from the LLM without any skill, one with the skill injected as a system prompt. Both outputs are then passed independently to a judge LLM that scores them against a rubric, without knowing which is which, and without ever seeing the original task prompt. After all runs, confidence intervals are computed over the scores for each condition and compared to produce a verdict.
+Each task is run N times. Every run produces two outputs from the same LLM: one with the skill injected as the system prompt, one without. Both outputs are then scored by a judge LLM. After all runs, confidence intervals are computed over the scores and compared.
 
-### Notes:
+### Step 1 — Two outputs per run
 
-**Blind evaluation** removes author bias. The judge receives only the output and the rubric, never the task prompt, never any indication of which condition produced the output.
+The runner LLM receives the task prompt. It runs twice: once with a plain system prompt, once with the skill's instructions as well. Everything else is identical:  same model, same temperature, same task.
 
-**On LLM-as-judge reliability:** any individual LLM judge can be inconsistent or biased. SkillBenchmark mitigates this in two ways: (1) the same judge scores both conditions under identical prompting, so systematic bias cancels out in the comparison; (2) using multiple judges per run and averaging their scores reduces random variance. The rubric is the main lever for quality: clear, distinguishable scoring levels produce more consistent results than vague ones.
+### Step 2 — Blind scoring with a rubric
 
-**Confidence intervals** (t-distribution, displayed as mean ± margin) quantify the uncertainty. Non-overlapping CIs indicate a statistically meaningful difference between conditions; overlapping CIs indicate the effect is too uncertain to call -> add more runs to tighten them.
+The judge LLM scores each output against a rubric. This is the part people ask about most, so it's worth explaining carefully.
 
-**Token cost** is tracked per run as a first-class metric alongside quality scores. Note: includes the tokens needed to include the skill in the system prompt.
+**The judge never sees the original task prompt.** This sounds like a limitation but it is a deliberate design choice. The rubric contains a context block that tells the judge exactly what a good answer looks like for this type of task: what to reward, what to penalise, and why. The rubric is the definition of quality. If you need the judge to see the task prompt to score the output, the rubric is underspecified and should be improved. Keeping the judge prompt-blind also prevents a common failure mode where the judge rewards outputs that literally mirror the task instructions, which would contaminate the comparison.
 
-> **Current scope:** SkillBenchmark currently evaluates skills on raw text LLM calls: single-turn prompt-in, response-out. This covers a large class of skills but misses skills that are designed to guide multi-step agent behaviour. The next major milestone is full agent environment support: sandboxed tool-use runs where a skill's effect on multi-turn, agentic tasks can be measured end-to-end. If you're interested in contributing or have ideas about what that should look like, reach out on [LinkedIn](https://linkedin.com/in/tiespetersen) :)
+**The judge does not know which output used the skill.** It receives the output and the rubric only. It cannot favour one condition over the other because it cannot tell them apart.
+
+**How judge bias is handled.** Any LLM judge has tendencies — it might prefer longer responses, or penalise terse phrasing, or be slightly inconsistent between calls. SkillBenchmark handles this in two ways:
+
+1. The *same* judge, with the *same* prompt, scores both outputs. This means any systematic bias applies equally to both conditions and cancels out when you compute the delta. You are not trying to get an absolute quality score — you are measuring a *relative difference* between two conditions evaluated under identical circumstances. Absolute judge accuracy matters far less than consistency.
+2. Using multiple judges per run and treating each score as an independent sample reduces random variance and gives tighter confidence intervals.
+
+The rubric is the main lever for evaluation quality. Criteria with clear, distinguishable scoring levels produce consistent results. Vague criteria produce noisy ones.
+
+### Step 3 — Confidence intervals on the scores and the delta
+
+All scores across runs and judges are treated as independent samples. A t-distribution confidence interval is computed for each condition (with skill, without skill). The delta — the difference between the two means — gets its own CI using Welch's t-interval, which correctly accounts for the uncertainty in both samples.
+
+Results are displayed as `mean ± margin`. Non-overlapping CIs on the two conditions indicate a statistically meaningful difference. The delta CI tells you whether the observed gap is real or consistent with zero. Overlapping CIs are not a failure — they mean the current number of runs is not enough to confirm a difference. Add more runs to tighten them.
+
+> **Current scope:** SkillBenchmark v1 evaluates skills on raw text LLM calls: single-turn prompt-in, response-out. The next major milestone is full agent environment support — sandboxed tool-use runs where a skill's effect on multi-turn, agentic tasks can be measured end-to-end. If you're interested in contributing, reach out on [LinkedIn](https://linkedin.com/in/tiespetersen).
 
 ---
 
