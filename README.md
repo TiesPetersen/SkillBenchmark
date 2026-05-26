@@ -60,3 +60,7 @@ rubric:
 |------|----------|
 | `results/benchmark_<skill>_<timestamp>.json` | Full run log — outputs, scores, token counts |
 | `results/benchmark_<skill>_<timestamp>.md`   | Summary report with verdict and score tables |
+
+## License
+
+MIT — see [LICENSE](LICENSE).
