@@ -1,8 +1,16 @@
-# Ignore local ideation / context files
-/local
-
 # Ignore results directory
 /results
 
+
 # Ignore environment files
 .env
+
+
+# Ignore Python cache and virtual environment
+__pycache__/
+*.pyc
+.venv/
+
+
+# Ignore local ideation / AI context files
+/local
