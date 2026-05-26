@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, List, Tuple
 
 from .evaluator import EvaluationResult
-from .stats import Stats, compute_stats, verdict
+from .stats import Stats, ci_margin, compute_stats, delta_ci_margin
 from .task import Task
 
 
@@ -23,7 +23,6 @@ class RunPair:
 @dataclass
 class TaskSummary:
     task_name: str
-    verdict: str
     with_skill_stats: Stats
     without_skill_stats: Stats
     md_filename: str
@@ -39,20 +38,6 @@ def _serializable(obj: Any) -> Any:
     return obj
 
 
-_VERDICT_LABELS = {
-    "skill_better":    "Skill improves output",
-    "baseline_better": "Baseline outperforms skill",
-    "inconclusive":    "Inconclusive — likely real effect, increase runs for more signal",
-    "no_difference":   "No meaningful difference detected",
-}
-
-_VERDICT_SYMBOLS = {
-    "skill_better":    "SKILL BETTER",
-    "baseline_better": "BASELINE BETTER",
-    "inconclusive":    "INCONCLUSIVE",
-    "no_difference":   "NO DIFFERENCE",
-}
-
 
 def create_run_dir(results_dir: str, skill_name: str, timestamp: str) -> str:
     run_dir = os.path.join(results_dir, f"{skill_name}__{timestamp}")
@@ -64,7 +49,6 @@ def write_task_results(
     task: Task,
     runs: List[RunPair],
     confidence: float,
-    min_meaningful_delta: float,
     run_dir: str,
     skill_name: str,
     timestamp: str,
@@ -75,7 +59,6 @@ def write_task_results(
     without_scores = [e.total_score for r in runs for e in r.without_skill]
     ws = compute_stats(with_scores, confidence)
     ns = compute_stats(without_scores, confidence)
-    v = verdict(ws, ns, min_meaningful_delta)
 
     # --- JSON ---
     json_path = os.path.join(run_dir, f"{slug}.json")
@@ -84,7 +67,6 @@ def write_task_results(
             "skill": skill_name,
             "task": task.name,
             "timestamp": timestamp,
-            "verdict": v,
             "with_skill_stats": _serializable(ws),
             "without_skill_stats": _serializable(ns),
             "runs": [_serializable(r) for r in runs],
@@ -96,15 +78,14 @@ def write_task_results(
         f"# {task.name}",
         f"*Skill: `{skill_name}` | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
         "",
-        f"**Verdict: {_VERDICT_LABELS[v]}**",
-        "",
         "## Score summary",
         "",
         "| | With skill | Without skill |",
         "|---|---|---|",
         f"| Mean score | {ws.mean:.1f} / {task.rubric.total} | {ns.mean:.1f} / {task.rubric.total} |",
+        f"| {ci_pct}% CI | {ws.mean:.1f} ± {ci_margin(ws):.1f} | {ns.mean:.1f} ± {ci_margin(ns):.1f} |",
+        f"| Delta ({ci_pct}% CI) | {ws.mean - ns.mean:+.1f} ± {delta_ci_margin(ws, ns, confidence):.1f} | — |",
         f"| Std dev | {ws.std:.1f} | {ns.std:.1f} |",
-        f"| {ci_pct}% CI | [{ws.ci_lower:.1f}, {ws.ci_upper:.1f}] | [{ns.ci_lower:.1f}, {ns.ci_upper:.1f}] |",
         f"| Samples (runs × judges) | {ws.n} | {ns.n} |",
         "",
         "## Per-run scores",
@@ -149,7 +130,6 @@ def write_task_results(
 
     return json_path, md_path, TaskSummary(
         task_name=task.name,
-        verdict=v,
         with_skill_stats=ws,
         without_skill_stats=ns,
         md_filename=md_filename,
@@ -165,10 +145,6 @@ def write_overview(
 ) -> str:
     ci_pct = int(config_snapshot.get("confidence_level", 0.95) * 100)
     dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
-
-    skill_better = sum(1 for s in summaries if s.verdict == "skill_better")
-    baseline_better = sum(1 for s in summaries if s.verdict == "baseline_better")
-    inconclusive = sum(1 for s in summaries if s.verdict == "inconclusive")
 
     lines = [
         f"# SkillBenchmark — {skill_name}",
@@ -186,25 +162,24 @@ def write_overview(
         f"| Runner temperature | {config_snapshot.get('runner_temperature', '—')} |",
         f"| Confidence level | {ci_pct}% |",
         "",
-        "## Summary",
+        "## Results",
         "",
-        f"**{len(summaries)} task(s)** — "
-        f"{skill_better} skill better · {baseline_better} baseline better · {inconclusive} inconclusive",
+        f"**{len(summaries)} task(s)**",
         "",
-        "| Task | Verdict | With skill | Without skill | Delta |",
-        "|---|---|---|---|---|",
+        f"| Task | With skill ({ci_pct}% CI) | Without skill ({ci_pct}% CI) | Delta ({ci_pct}% CI) |",
+        "|---|---|---|---|",
     ]
 
+    confidence = config_snapshot.get("confidence_level", 0.95)
     for s in summaries:
         ws, ns = s.with_skill_stats, s.without_skill_stats
         delta = ws.mean - ns.mean
-        delta_str = f"+{delta:.1f}" if delta > 0 else f"{delta:.1f}"
+        d_margin = delta_ci_margin(ws, ns, confidence)
         lines.append(
             f"| [{s.task_name}]({s.md_filename}) "
-            f"| {_VERDICT_SYMBOLS[s.verdict]} "
-            f"| {ws.mean:.1f} [{ws.ci_lower:.1f}, {ws.ci_upper:.1f}] "
-            f"| {ns.mean:.1f} [{ns.ci_lower:.1f}, {ns.ci_upper:.1f}] "
-            f"| {delta_str} |"
+            f"| {ws.mean:.1f} ± {ci_margin(ws):.1f} "
+            f"| {ns.mean:.1f} ± {ci_margin(ns):.1f} "
+            f"| {delta:+.1f} ± {d_margin:.1f} |"
         )
 
     lines.append("")

@@ -38,14 +38,17 @@ def compute_stats(scores: List[float], confidence: float = 0.95) -> Stats:
     )
 
 
-def verdict(with_stats: Stats, without_stats: Stats, min_meaningful_delta: float = 5.0) -> str:
-    if with_stats.ci_lower > without_stats.ci_upper:
-        return "skill_better"
-    elif without_stats.ci_lower > with_stats.ci_upper:
-        return "baseline_better"
-    elif abs(with_stats.mean - without_stats.mean) < min_meaningful_delta:
-        # CIs overlap and means are close — no meaningful difference detected
-        return "no_difference"
-    else:
-        # CIs overlap but means diverge — likely a real effect, more runs needed
-        return "inconclusive"
+def ci_margin(stats: Stats) -> float:
+    return (stats.ci_upper - stats.ci_lower) / 2
+
+
+def delta_ci_margin(s1: Stats, s2: Stats, confidence: float) -> float:
+    """CI margin for the difference s1.mean - s2.mean using Welch's t-interval."""
+    if s1.n < 2 or s2.n < 2:
+        return float("inf")
+    se1 = s1.std / math.sqrt(s1.n)
+    se2 = s2.std / math.sqrt(s2.n)
+    se_diff = math.sqrt(se1 ** 2 + se2 ** 2)
+    # Welch-Satterthwaite degrees of freedom
+    df = (se1 ** 2 + se2 ** 2) ** 2 / (se1 ** 4 / (s1.n - 1) + se2 ** 4 / (s2.n - 1))
+    return _t_critical(df, confidence) * se_diff

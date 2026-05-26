@@ -15,23 +15,10 @@ from .config import load_config
 from .evaluator import evaluate_output
 from .report import RunPair, TaskSummary, create_run_dir, write_task_results, write_overview
 from .runner import run_task
-from .stats import compute_stats, verdict
+from .stats import ci_margin, compute_stats, delta_ci_margin
 from .task import load_all_tasks
 
 console = Console()
-
-_VERDICT_COLORS = {
-    "skill_better":    "green",
-    "baseline_better": "red",
-    "inconclusive":    "yellow",
-    "no_difference":   "blue",
-}
-_VERDICT_LABELS = {
-    "skill_better":    "SKILL BETTER",
-    "baseline_better": "BASELINE BETTER",
-    "inconclusive":    "INCONCLUSIVE — increase runs for more signal",
-    "no_difference":   "NO DIFFERENCE",
-}
 
 
 def _skill_name(content: Optional[str], skill_path: str) -> str:
@@ -44,7 +31,7 @@ def _skill_name(content: Optional[str], skill_path: str) -> str:
 
 def _load_skill(skill_path: str) -> Optional[str]:
     if not os.path.exists(skill_path):
-        console.print(f"  [yellow]Warning:[/yellow] no skill file found at '{skill_path}' — running baseline comparison only")
+        console.print(f"  [yellow]Warning:[/yellow] no skill file found at '{skill_path}' — running without skill comparison only")
         return None
     with open(skill_path, encoding="utf-8") as f:
         return f.read()
@@ -69,7 +56,7 @@ def main() -> None:
     if skill_content:
         console.print(f"  [green]✓[/green] Skill loaded: [bold]{skill_name}[/bold]")
     else:
-        console.print(f"  [yellow]![/yellow] No skill found — baseline-only mode")
+        console.print(f"  [yellow]![/yellow] No skill found — without skill-only mode")
 
     with console.status("[dim]Loading tasks...[/dim]", spinner="dots"):
         tasks = load_all_tasks(config.tasks_dir)
@@ -104,7 +91,7 @@ def main() -> None:
             console.print(f"  [dim]Run {i + 1}/{n_runs}[/dim]")
 
             with console.status(
-                f"    [cyan]Running baseline[/cyan] [dim](no skill, waiting for API...)[/dim]",
+                f"    [cyan]Running without skill[/cyan] [dim](no skill, waiting for API...)[/dim]",
                 spinner="dots",
             ):
                 without = run_task(
@@ -112,7 +99,7 @@ def main() -> None:
                     config.runner_max_tokens, task, skill_content=None,
                 )
             console.print(
-                f"    [dim]Baseline[/dim]     [green]done[/green]"
+                f"    [dim]Without skill[/dim]     [green]done[/green]"
                 f"  [dim]{without.input_tokens + without.output_tokens} tokens[/dim]"
             )
 
@@ -133,7 +120,7 @@ def main() -> None:
             for j in range(n_judges):
                 judge_str = f"judge {j + 1}/{n_judges}" if n_judges > 1 else "judge"
                 with console.status(
-                    f"    [cyan]Judging baseline[/cyan] [dim]({judge_str}, waiting for API...)[/dim]",
+                    f"    [cyan]Judging without skill[/cyan] [dim]({judge_str}, waiting for API...)[/dim]",
                     spinner="dots",
                 ):
                     ev = evaluate_output(
@@ -143,7 +130,7 @@ def main() -> None:
                 without_evals.append(ev)
                 j_label = f"[dim]j{j + 1}[/dim] " if n_judges > 1 else ""
                 console.print(
-                    f"    [dim]Judge baseline[/dim]   {j_label}[green]done[/green]"
+                    f"    [dim]Judge without skill[/dim]   {j_label}[green]done[/green]"
                     f"  score=[bold]{ev.total_score}/{ev.max_score}[/bold]"
                 )
 
@@ -177,21 +164,20 @@ def main() -> None:
 
         ws = compute_stats([e.total_score for r in run_pairs for e in r.with_skill], config.confidence_level)
         ns = compute_stats([e.total_score for r in run_pairs for e in r.without_skill], config.confidence_level)
-        v = verdict(ws, ns, config.min_meaningful_delta)
 
         json_path, md_path, summary = write_task_results(
-            task, run_pairs, config.confidence_level, config.min_meaningful_delta, run_dir, skill_name, timestamp,
+            task, run_pairs, config.confidence_level, run_dir, skill_name, timestamp,
         )
         summaries.append(summary)
 
-        color = _VERDICT_COLORS[v]
-        label = _VERDICT_LABELS[v]
         ci_pct = int(config.confidence_level * 100)
+        delta = ws.mean - ns.mean
+        d_margin = delta_ci_margin(ws, ns, config.confidence_level)
+        delta_str = f"+{delta:.1f}" if delta > 0 else f"{delta:.1f}"
         console.print(
-            f"\n  [{color}][bold]{label}[/bold][/{color}]"
-            f"  [dim]with-skill: {ws.mean:.1f} [{ws.ci_lower:.1f}, {ws.ci_upper:.1f}]"
-            f"  |  baseline: {ns.mean:.1f} [{ns.ci_lower:.1f}, {ns.ci_upper:.1f}]"
-            f"  ({ci_pct}% CI)[/dim]"
+            f"\n  [dim]with-skill:[/dim] [bold]{ws.mean:.1f} ± {ci_margin(ws):.1f}[/bold]"
+            f"  [dim]without skill:[/dim] [bold]{ns.mean:.1f} ± {ci_margin(ns):.1f}[/bold]"
+            f"  [dim]delta: {delta_str} ± {d_margin:.1f}  ({ci_pct}% CI)[/dim]"
         )
         console.print()
 
@@ -209,14 +195,19 @@ def main() -> None:
     console.print()
 
     # Final summary table
-    console.print("[bold]Summary[/bold]")
+    ci_pct = int(config.confidence_level * 100)
+    console.print(f"[bold]Summary[/bold]  [dim]({ci_pct}% CI)[/dim]")
     console.print()
     for s in summaries:
-        v = s.verdict
-        color = _VERDICT_COLORS.get(v, "white")
-        label = _VERDICT_LABELS.get(v, v.upper())
+        ws, ns = s.with_skill_stats, s.without_skill_stats
+        delta = ws.mean - ns.mean
+        d_margin = delta_ci_margin(ws, ns, config.confidence_level)
+        delta_str = f"+{delta:.1f}" if delta > 0 else f"{delta:.1f}"
         console.print(
-            f"  [{color}]{label:<18}[/{color}]  [dim]{s.task_name}[/dim]"
+            f"  [dim]{s.task_name}[/dim]\n"
+            f"    with-skill [bold]{ws.mean:.1f} ± {ci_margin(ws):.1f}[/bold]"
+            f"  without skill [bold]{ns.mean:.1f} ± {ci_margin(ns):.1f}[/bold]"
+            f"  [dim]delta {delta_str} ± {d_margin:.1f}[/dim]"
         )
 
     console.print()

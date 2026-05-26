@@ -18,7 +18,6 @@ class Config:
     tasks_dir: str
     results_dir: str
     confidence_level: float
-    min_meaningful_delta: float
     api_key: str
 
 
@@ -45,6 +44,5 @@ def load_config(config_path: str = "config.yml") -> Config:
         tasks_dir=data.get("tasks_dir", "tasks"),
         results_dir=data.get("results_dir", "results"),
         confidence_level=data.get("confidence_level", 0.95),
-        min_meaningful_delta=data.get("min_meaningful_delta", 5.0),
         api_key=api_key,
     )

@@ -22,12 +22,11 @@ SkillBenchmark runs each task N times. Each run produces two outputs: one from t
 
 **Blind evaluation** removes author bias. The judge receives only the output and the rubric, never the task prompt, never any indication of which condition produced the output.
 
-**Confidence intervals** (t-distribution) determine the verdict:
-- `SKILL BETTER` — with-skill CI is entirely above without-skill CI
-- `BASELINE BETTER` — without-skill CI is entirely above with-skill CI
-- `INCONCLUSIVE` — CIs overlap (increase runs for more signal)
+**On LLM-as-judge reliability:** any individual LLM judge can be inconsistent or biased. SkillBenchmark mitigates this in two ways: (1) the same judge scores both conditions under identical prompting, so systematic bias cancels out in the comparison — what matters is the *relative* score, not the absolute value; (2) using multiple judges per run and averaging their scores reduces random variance. The rubric is the main lever for quality — clear, distinguishable scoring levels produce more consistent results than vague ones.
 
-**Token cost** is tracked per run as a first-class metric alongside quality scores.
+**Confidence intervals** (t-distribution, displayed as mean ± margin) quantify the uncertainty. Non-overlapping CIs indicate a statistically meaningful difference between conditions; overlapping CIs indicate the effect is too uncertain to call — add more runs to tighten them.
+
+**Token cost** is tracked per run as a first-class metric alongside quality scores. Note: includes the tokens needed to include the skill in the system prompt.
 
 > **Current scope:** SkillBenchmark currently evaluates skills on raw text LLM calls: single-turn prompt-in, response-out. This covers a large class of skills but misses skills that are designed to guide multi-step agent behaviour. The next major milestone is full agent environment support: sandboxed tool-use runs where a skill's effect on multi-turn, agentic tasks can be measured end-to-end. If you're interested in contributing or have ideas about what that should look like, reach out on [LinkedIn](https://linkedin.com/in/tiespetersen) :)
 
@@ -36,7 +35,7 @@ SkillBenchmark runs each task N times. Each run produces two outputs: one from t
 ## Quickstart
 
 ```bash
-git clone https://github.com/your-username/SkillBenchmark
+git clone https://github.com/TiesPetersen/SkillBenchmark
 cd SkillBenchmark
 pip install -r requirements.txt
 cp .env.example .env
@@ -47,12 +46,14 @@ Add your Anthropic API key to `.env`:
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Drop your skill into `skills/` and point `config.yml` at it:
+The repo ships with a working example — the [Caveman skill](#example-benchmark-caveman) and three tasks are already in `tasks/` and `skills/`, and `config.yml` points at them. You can run `python run.py` immediately to see real output before touching anything.
+
+When you're ready to benchmark your own skill, drop it into `skills/` and update `config.yml`:
 ```yaml
 skill_path: skills/my-skill/SKILL.md
 ```
 
-Add your tasks to `tasks/`, each task is a YAML file with a prompt and a scoring rubric (see section [Writing Tasks](#writing-tasks)). An example task is included to get you started. The more tasks you add, the more meaningful the benchmark results will be.
+Then replace or extend the tasks in `tasks/` with tasks relevant to your skill. The more tasks you add, the more meaningful the results will be (see [Writing Tasks](#writing-tasks)).
 
 Run the benchmark:
 ```bash
@@ -68,9 +69,11 @@ Results are written to `results/` as both a JSON log and a markdown report.
 ```
 SkillBenchmark/
 ├── tasks/                          # One YAML file per task
-│   └── example_task.yml
+│   ├── caveman_debug_explanation.yml       # Example: explain a Python bug to a developer
+│   ├── caveman_user_error_message.yml      # Example: write a user-facing error message
+│   └── caveman_commit_message.yml          # Example: write a commit message for a diff
 ├── skills/                         # One folder per skill (Agent Skills standard)
-│   └── example-skill/
+│   └── caveman/                    # Example: Caveman skill
 │       └── SKILL.md
 ├── results/                        # Output (gitignored)
 ├── src/
@@ -126,7 +129,7 @@ confidence_level: 0.95
 
 **`judge_max_tokens`** — The maximum length of the judge's response. The judge only returns structured JSON, so 1024 is almost always sufficient.
 
-**`confidence_level`** — The confidence level used for the confidence intervals (e.g. 0.95 = 95% CI). Higher values produce wider intervals and make it harder to reach a non-inconclusive verdict, but the verdict is more trustworthy when you do.
+**`confidence_level`** — The confidence level used for the confidence intervals (e.g. 0.95 = 95% CI). Higher values produce wider intervals, but the result is more trustworthy when CIs don't overlap.
 
 **`skill_path`** — Path to the `SKILL.md` file to benchmark.
 
@@ -223,30 +226,96 @@ The frontmatter `name` and `description` fields are standard Agent Skills metada
 
 Each run produces two files in `results/`:
 
-**`benchmark_<skill>_<task>_<timestamp>.md`** — human-readable summary:
+**`<task_slug>.md`** — human-readable summary:
 
 ```
-# Benchmark — Write an incident postmortem
-Skill: `my-skill` | 2026-05-26 17:30:02
+# Write an incident postmortem
+*Skill: `my-skill` | 2026-05-26 17:30:02*
 
-Verdict: SKILL BETTER
+## Score summary
 
 | | With skill | Without skill |
 |---|---|---|
-| Mean score    | 91.4 / 100        | 74.2 / 100        |
-| Std dev       | 3.1               | 6.8               |
-| 95% CI        | [88.5, 94.3]      | [67.9, 80.5]      |
-| Runs          | 10                | 10                |
+| Mean score          | 91.4 / 100   | 74.2 / 100   |
+| 95% CI              | 91.4 ± 2.9   | 74.2 ± 5.5   |
+| Delta (95% CI)      | +17.2 ± 6.2  | —            |
+| Std dev             | 3.1          | 6.8          |
+| Samples (runs × judges) | 10      | 10           |
 
-Criterion breakdown (mean across runs):
-| Criterion          | With skill | Without skill | Max |
-|--------------------|------------|---------------|-----|
-| Timeline           | 18.9       | 12.1          | 20  |
-| Root cause         | 23.1       | 17.4          | 25  |
+## Criterion breakdown (mean across runs)
+| Criterion     | With skill | Without skill | Max |
+|---|---|---|---|
+| Timeline      | 18.9       | 12.1          | 20  |
+| Root cause    | 23.1       | 17.4          | 25  |
 | ...
 ```
 
 **`benchmark_<skill>_<task>_<timestamp>.json`** — full run log with every output, per-criterion score, reasoning, and token count for reproducibility.
+
+---
+
+## Example benchmark: Caveman
+
+The `tasks/` and `skills/` folders include a ready-to-run example that benchmarks the [Caveman skill](https://github.com/JuliusBrussee/caveman) by Julius Brussee. Caveman is a popular Agent Skill that makes an LLM respond in compressed, fragment-based prose to cut output token usage by roughly 65–75% while claiming to maintain technical accuracy.
+
+> **Note:** This is not a rigorous or definitive evaluation of Caveman. It is a small illustrative example using three tasks and a small number of runs, intended only to show how SkillBenchmark works in practice. Treat the results as a demonstration, not a verdict on the skill.
+>
+> Full credit for the Caveman skill goes to [Julius Brussee](https://github.com/JuliusBrussee/caveman) — it is not part of this project and is included here solely as a benchmark subject.
+
+The three example tasks were chosen to probe different contexts where Caveman's terse style might help, hurt, or have no effect:
+
+| Task | Hypothesis |
+|---|---|
+| Explain a Python bug to a developer | Caveman-style fragments are acceptable for dev-to-dev communication — skill may help or be neutral |
+| Write a user-facing error message | Non-technical users need full sentences and clear tone — skill likely hurts |
+| Write a commit message for a diff | Commit messages reward brevity and precision — skill may help |
+
+### Results
+
+**Run config:** 5 runs × 3 judges = 15 samples per condition · `claude-haiku-4-5` runner and judge · 95% CI
+
+| Task | With skill | Without skill | Delta | Avg tokens (with / without skill) |
+|---|---|---|---|---|
+| Write a commit message | 93.5 ± 1.5 | 89.9 ± 2.3 | +3.6 ± 2.8 | 1896 / 952 |
+| Explain a Python bug | 99.5 ± 0.5 | 100.0 ± 0.0 | −0.5 ± 0.5 | 1551 / 729 |
+| Write a user-facing error message | 89.7 ± 3.2 | 87.7 ± 2.5 | +2.0 ± 4.0 | 1233 / 306 |
+
+The CI intervals on all three tasks overlap, so no difference is statistically confirmed at 95%. The extra token cost across all tasks is roughly the size of the SKILL.md being injected as system prompt (~950 tokens), with output length largely unchanged.
+
+<details>
+<summary>Criterion breakdown — Write a commit message</summary>
+
+| Criterion | With skill | Without skill | Max |
+|---|---|---|---|
+| Conventional Commits format | 24.3 | 24.2 | 25 |
+| Accuracy — what changed | 33.7 | 32.4 | 35 |
+| Explains the why | 22.3 | 20.8 | 25 |
+| Conciseness | 13.3 | 12.5 | 15 |
+
+</details>
+
+<details>
+<summary>Criterion breakdown — Explain a Python bug</summary>
+
+| Criterion | With skill | Without skill | Max |
+|---|---|---|---|
+| Root cause accuracy | 40.0 | 40.0 | 40 |
+| Fix correctness | 34.9 | 35.0 | 35 |
+| Clarity for a developer | 24.6 | 25.0 | 25 |
+
+</details>
+
+<details>
+<summary>Criterion breakdown — Write a user-facing error message</summary>
+
+| Criterion | With skill | Without skill | Max |
+|---|---|---|---|
+| Clarity for a non-technical user | 28.0 | 28.0 | 30 |
+| Actionability | 25.5 | 23.9 | 30 |
+| Tone | 17.7 | 17.7 | 20 |
+| Structure and completeness | 18.5 | 18.1 | 20 |
+
+</details>
 
 ---
 

@@ -14,4 +14,3 @@ skill_path: skills/caveman/SKILL.md        # path to the SKILL.md to benchmark (
 tasks_dir: tasks                    # directory containing task YAML files to test the skill on.
 results_dir: results                # directory where results will be written
 confidence_level: 0.95              # confidence level for the confidence intervals (e.g., 0.95 for 95%)
-min_meaningful_delta: 5.0           # minimum mean-score difference (in rubric points) to distinguish "inconclusive" (real effect, needs more runs) from "no_difference" (means too close to matter)
