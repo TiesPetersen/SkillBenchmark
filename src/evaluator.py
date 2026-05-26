@@ -32,7 +32,11 @@ def _build_system_prompt(rubric: Rubric) -> str:
     if rubric.context:
         lines += ["CONTEXT:", rubric.context.strip(), ""]
 
-    lines += [f"RUBRIC (total: {rubric.total} pts)", ""]
+    criterion_names = [c.name for c in rubric.criteria]
+    lines += [
+        f"RUBRIC ({len(rubric.criteria)} criteria, {rubric.total} pts total)",
+        "",
+    ]
 
     for criterion in rubric.criteria:
         lines.append(f"### {criterion.name} (max {criterion.points} pts)")
@@ -41,12 +45,20 @@ def _build_system_prompt(rubric: Rubric) -> str:
         lines.append("")
 
     lines += [
-        "Return your evaluation as a JSON object with this exact structure:",
-        '{"criteria": [{"name": "...", "score": N, "reasoning": "one sentence"}], "total": N}',
+        "---",
+        "OUTPUT FORMAT",
         "",
-        "- Score every criterion listed above",
-        "- total must equal the sum of all criterion scores",
-        "- Return only valid JSON, no other text",
+        "Return a JSON object. No prose, no markdown fences, no explanation — raw JSON only.",
+        "",
+        "Schema:",
+        '  {"criteria": [{"name": "<criterion name>", "score": <integer>, "reasoning": "<one sentence>"}]}',
+        "",
+        "Requirements:",
+        f"  - The array must contain exactly {len(rubric.criteria)} entries, one per criterion, in this order: "
+        + ", ".join(f'"{n}"' for n in criterion_names),
+        "  - Each score must be an integer within the range shown for that criterion",
+        "  - Each name must match the criterion name exactly (case-sensitive)",
+        "  - Reasoning must be one concise sentence explaining the score",
     ]
 
     return "\n".join(lines)
@@ -75,7 +87,7 @@ def _parse_response(raw: str, rubric: Rubric) -> EvaluationResult:
 
     return EvaluationResult(
         criteria_scores=criteria_scores,
-        total_score=data["total"],
+        total_score=sum(c.score for c in criteria_scores),
         max_score=rubric.total,
     )
 
@@ -103,6 +115,7 @@ def evaluate_output(
     client: anthropic.Anthropic,
     judge_model: str,
     judge_temperature: float,
+    judge_max_tokens: int,
     rubric: Rubric,
     output: str,
     num_judges: int = 1,
@@ -113,7 +126,7 @@ def evaluate_output(
     for _ in range(num_judges):
         response = client.messages.create(
             model=judge_model,
-            max_tokens=2048,
+            max_tokens=judge_max_tokens,
             temperature=judge_temperature,
             system=system_prompt,
             messages=[{"role": "user", "content": f"OUTPUT TO EVALUATE:\n\n{output}"}],

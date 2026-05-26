@@ -25,6 +25,7 @@ def run_task(
     client: anthropic.Anthropic,
     model: str,
     temperature: float,
+    max_tokens: int,
     task: Task,
     skill_content: Optional[str] = None,
 ) -> RunResult:
@@ -37,7 +38,7 @@ def run_task(
 
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=max_tokens,
         temperature=temperature,
         system=system,
         messages=[{"role": "user", "content": user_message}],

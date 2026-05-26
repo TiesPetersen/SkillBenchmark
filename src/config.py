@@ -11,7 +11,9 @@ class Config:
     runner_model: str
     judge_model: str
     runner_temperature: float
+    runner_max_tokens: int
     judge_temperature: float
+    judge_max_tokens: int
     skill_path: str
     tasks_dir: str
     results_dir: str
@@ -35,7 +37,9 @@ def load_config(config_path: str = "config.yml") -> Config:
         runner_model=data.get("runner_model", "claude-sonnet-4-6"),
         judge_model=data.get("judge_model", "claude-sonnet-4-6"),
         runner_temperature=data.get("runner_temperature", 0.7),
+        runner_max_tokens=data.get("runner_max_tokens", 4096),
         judge_temperature=data.get("judge_temperature", 0.0),
+        judge_max_tokens=data.get("judge_max_tokens", 1024),
         skill_path=data.get("skill_path", "skill.md"),
         tasks_dir=data.get("tasks_dir", "tasks"),
         results_dir=data.get("results_dir", "results"),

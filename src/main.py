@@ -67,11 +67,11 @@ def main() -> None:
         for i in range(n_runs):
             print(f"  Run {i + 1}/{n_runs} ...", end=" ", flush=True)
 
-            without = run_task(client, config.runner_model, config.runner_temperature, task, skill_content=None)
-            with_skill = run_task(client, config.runner_model, config.runner_temperature, task, skill_content=skill_content)
+            without = run_task(client, config.runner_model, config.runner_temperature, config.runner_max_tokens, task, skill_content=None)
+            with_skill = run_task(client, config.runner_model, config.runner_temperature, config.runner_max_tokens, task, skill_content=skill_content)
 
-            without_eval = evaluate_output(client, config.judge_model, config.judge_temperature, task.rubric, without.output, n_judges)
-            with_eval = evaluate_output(client, config.judge_model, config.judge_temperature, task.rubric, with_skill.output, n_judges)
+            without_eval = evaluate_output(client, config.judge_model, config.judge_temperature, config.judge_max_tokens, task.rubric, without.output, n_judges)
+            with_eval = evaluate_output(client, config.judge_model, config.judge_temperature, config.judge_max_tokens, task.rubric, with_skill.output, n_judges)
 
             run_pairs.append(RunPair(
                 run_index=i,
