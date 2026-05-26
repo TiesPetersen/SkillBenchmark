@@ -22,9 +22,9 @@ SkillBenchmark runs each task N times. Each run produces two outputs: one from t
 
 **Blind evaluation** removes author bias. The judge receives only the output and the rubric, never the task prompt, never any indication of which condition produced the output.
 
-**On LLM-as-judge reliability:** any individual LLM judge can be inconsistent or biased. SkillBenchmark mitigates this in two ways: (1) the same judge scores both conditions under identical prompting, so systematic bias cancels out in the comparison — what matters is the *relative* score, not the absolute value; (2) using multiple judges per run and averaging their scores reduces random variance. The rubric is the main lever for quality — clear, distinguishable scoring levels produce more consistent results than vague ones.
+**On LLM-as-judge reliability:** any individual LLM judge can be inconsistent or biased. SkillBenchmark mitigates this in two ways: (1) the same judge scores both conditions under identical prompting, so systematic bias cancels out in the comparison; (2) using multiple judges per run and averaging their scores reduces random variance. The rubric is the main lever for quality: clear, distinguishable scoring levels produce more consistent results than vague ones.
 
-**Confidence intervals** (t-distribution, displayed as mean ± margin) quantify the uncertainty. Non-overlapping CIs indicate a statistically meaningful difference between conditions; overlapping CIs indicate the effect is too uncertain to call — add more runs to tighten them.
+**Confidence intervals** (t-distribution, displayed as mean ± margin) quantify the uncertainty. Non-overlapping CIs indicate a statistically meaningful difference between conditions; overlapping CIs indicate the effect is too uncertain to call -> add more runs to tighten them.
 
 **Token cost** is tracked per run as a first-class metric alongside quality scores. Note: includes the tokens needed to include the skill in the system prompt.
 
@@ -46,7 +46,7 @@ Add your Anthropic API key to `.env`:
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-The repo ships with a working example — the [Caveman skill](#example-benchmark-caveman) and three tasks are already in `tasks/` and `skills/`, and `config.yml` points at them. You can run `python run.py` immediately to see real output before touching anything.
+The repo ships with a working example: the [Caveman skill](#example-benchmark-caveman) and three tasks are already in `tasks/` and `skills/`, and `config.yml` points at them. You can run `python run.py` immediately to see real output before touching anything.
 
 When you're ready to benchmark your own skill, drop it into `skills/` and update `config.yml`:
 ```yaml
@@ -218,15 +218,15 @@ metadata:
 Everything below the frontmatter becomes the system prompt for the runner LLM.
 ```
 
-The frontmatter `name` and `description` fields are standard Agent Skills metadata. The markdown body is what gets injected as the system prompt — frontmatter is stripped automatically.
+The frontmatter `name` and `description` fields are standard Agent Skills metadata. The markdown body is what gets injected as the system prompt, frontmatter is stripped automatically.
 
 ---
 
 ## Reading results
 
-Each run produces two files in `results/`:
+Each benchmark run writes a directory under `results/<skill>__<timestamp>/` containing three file types.
 
-**`<task_slug>.md`** — human-readable summary:
+**`<task_slug>.md`** — human-readable summary for each task:
 
 ```
 # Write an incident postmortem
@@ -242,15 +242,60 @@ Each run produces two files in `results/`:
 | Std dev             | 3.1          | 6.8          |
 | Samples (runs × judges) | 10      | 10           |
 
+## Per-run scores
+| Run | Judge | With skill | Without skill |
+|---|---|---|---|
+| 1 | 1 | 94 | 76 |
+...
+
 ## Criterion breakdown (mean across runs)
 | Criterion     | With skill | Without skill | Max |
 |---|---|---|---|
 | Timeline      | 18.9       | 12.1          | 20  |
 | Root cause    | 23.1       | 17.4          | 25  |
-| ...
+...
+
+## Token usage
+| Run | With skill | Without skill |
+|---|---|---|
+| 1 | 1913 | 944 |
+...
 ```
 
-**`benchmark_<skill>_<task>_<timestamp>.json`** — full run log with every output, per-criterion score, reasoning, and token count for reproducibility.
+**`<task_slug>.json`** — full run log for reproducibility. Contains every output, per-criterion score and reasoning, token counts, and aggregate stats:
+
+```json
+{
+  "skill": "my-skill",
+  "task": "Write an incident postmortem",
+  "timestamp": "20260526_173002",
+  "with_skill_stats": { "mean": 91.4, "std": 3.1, "ci_lower": 88.5, "ci_upper": 94.3, "n": 10 },
+  "without_skill_stats": { "mean": 74.2, "std": 6.8, "ci_lower": 67.9, "ci_upper": 80.5, "n": 10 },
+  "runs": [
+    {
+      "run_index": 0,
+      "with_skill_output": "...",
+      "without_skill_output": "...",
+      "with_skill_tokens": 1913,
+      "without_skill_tokens": 944,
+      "with_skill": [
+        {
+          "total_score": 94,
+          "max_score": 100,
+          "criteria_scores": [
+            { "name": "Timeline", "score": 18, "max_score": 20, "reasoning": "..." },
+            ...
+          ]
+        }
+      ],
+      "without_skill": [ ... ]
+    },
+    ...
+  ]
+}
+```
+
+**`overview.md`** — cross-task summary table with all scores, deltas, and run configuration in one place.
 
 ---
 
@@ -260,7 +305,7 @@ The `tasks/` and `skills/` folders include a ready-to-run example that benchmark
 
 > **Note:** This is not a rigorous or definitive evaluation of Caveman. It is a small illustrative example using three tasks and a small number of runs, intended only to show how SkillBenchmark works in practice. Treat the results as a demonstration, not a verdict on the skill.
 >
-> Full credit for the Caveman skill goes to [Julius Brussee](https://github.com/JuliusBrussee/caveman) — it is not part of this project and is included here solely as a benchmark subject.
+> Full credit for the Caveman skill goes to [Julius Brussee](https://github.com/JuliusBrussee/caveman), it is not part of this project and is included here solely as a benchmark subject.
 
 The three example tasks were chosen to probe different contexts where Caveman's terse style might help, hurt, or have no effect:
 
