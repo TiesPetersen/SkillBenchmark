@@ -12,8 +12,8 @@ from .task import Task
 @dataclass
 class RunPair:
     run_index: int
-    with_skill: EvaluationResult
-    without_skill: EvaluationResult
+    with_skill: List[EvaluationResult]
+    without_skill: List[EvaluationResult]
     with_skill_output: str
     without_skill_output: str
     with_skill_tokens: int
@@ -68,8 +68,8 @@ def write_task_results(
 ) -> Tuple[str, str, TaskSummary]:
     slug = task.name.lower().replace(" ", "_")
 
-    with_scores = [r.with_skill.total_score for r in runs]
-    without_scores = [r.without_skill.total_score for r in runs]
+    with_scores = [e.total_score for r in runs for e in r.with_skill]
+    without_scores = [e.total_score for r in runs for e in r.without_skill]
     ws = compute_stats(with_scores, confidence)
     ns = compute_stats(without_scores, confidence)
     v = verdict(ws, ns)
@@ -102,15 +102,17 @@ def write_task_results(
         f"| Mean score | {ws.mean:.1f} / {task.rubric.total} | {ns.mean:.1f} / {task.rubric.total} |",
         f"| Std dev | {ws.std:.1f} | {ns.std:.1f} |",
         f"| {ci_pct}% CI | [{ws.ci_lower:.1f}, {ws.ci_upper:.1f}] | [{ns.ci_lower:.1f}, {ns.ci_upper:.1f}] |",
-        f"| Runs | {ws.n} | {ns.n} |",
+        f"| Samples (runs × judges) | {ws.n} | {ns.n} |",
         "",
         "## Per-run scores",
         "",
-        "| Run | With skill | Without skill |",
-        "|---|---|---|",
+        "| Run | Judge | With skill | Without skill |",
+        "|---|---|---|---|",
     ]
     for r in runs:
-        md_lines.append(f"| {r.run_index + 1} | {r.with_skill.total_score} | {r.without_skill.total_score} |")
+        for j, (w_e, n_e) in enumerate(zip(r.with_skill, r.without_skill)):
+            run_label = str(r.run_index + 1) if j == 0 else ""
+            md_lines.append(f"| {run_label} | {j + 1} | {w_e.total_score} | {n_e.total_score} |")
 
     md_lines += [
         "",
@@ -119,9 +121,11 @@ def write_task_results(
         "| Criterion | With skill | Without skill | Max |",
         "|---|---|---|---|",
     ]
-    for i, crit in enumerate(runs[0].with_skill.criteria_scores):
-        w_avg = sum(r.with_skill.criteria_scores[i].score for r in runs) / len(runs)
-        n_avg = sum(r.without_skill.criteria_scores[i].score for r in runs) / len(runs)
+    all_with = [e for r in runs for e in r.with_skill]
+    all_without = [e for r in runs for e in r.without_skill]
+    for i, crit in enumerate(all_with[0].criteria_scores):
+        w_avg = sum(e.criteria_scores[i].score for e in all_with) / len(all_with)
+        n_avg = sum(e.criteria_scores[i].score for e in all_without) / len(all_without)
         md_lines.append(f"| {crit.name} | {w_avg:.1f} | {n_avg:.1f} | {crit.max_score} |")
 
     md_lines += [

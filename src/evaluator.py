@@ -92,25 +92,6 @@ def _parse_response(raw: str, rubric: Rubric) -> EvaluationResult:
     )
 
 
-def _average_evaluations(evaluations: List[EvaluationResult]) -> EvaluationResult:
-    n = len(evaluations)
-    avg_criteria = []
-    for i, crit in enumerate(evaluations[0].criteria_scores):
-        avg_score = round(sum(e.criteria_scores[i].score for e in evaluations) / n)
-        reasonings = " | ".join(e.criteria_scores[i].reasoning for e in evaluations)
-        avg_criteria.append(CriterionScore(
-            name=crit.name,
-            score=avg_score,
-            max_score=crit.max_score,
-            reasoning=f"avg of {n} judges: {reasonings}",
-        ))
-    return EvaluationResult(
-        criteria_scores=avg_criteria,
-        total_score=sum(c.score for c in avg_criteria),
-        max_score=evaluations[0].max_score,
-    )
-
-
 def evaluate_output(
     client: anthropic.Anthropic,
     judge_model: str,
@@ -118,19 +99,13 @@ def evaluate_output(
     judge_max_tokens: int,
     rubric: Rubric,
     output: str,
-    num_judges: int = 1,
 ) -> EvaluationResult:
     system_prompt = _build_system_prompt(rubric)
-    evaluations = []
-
-    for _ in range(num_judges):
-        response = client.messages.create(
-            model=judge_model,
-            max_tokens=judge_max_tokens,
-            temperature=judge_temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": f"OUTPUT TO EVALUATE:\n\n{output}"}],
-        )
-        evaluations.append(_parse_response(response.content[0].text, rubric))
-
-    return evaluations[0] if num_judges == 1 else _average_evaluations(evaluations)
+    response = client.messages.create(
+        model=judge_model,
+        max_tokens=judge_max_tokens,
+        temperature=judge_temperature,
+        system=system_prompt,
+        messages=[{"role": "user", "content": f"OUTPUT TO EVALUATE:\n\n{output}"}],
+    )
+    return _parse_response(response.content[0].text, rubric)

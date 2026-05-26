@@ -127,46 +127,54 @@ def main() -> None:
                 f"  [dim]{with_skill.input_tokens + with_skill.output_tokens} tokens[/dim]"
             )
 
-            judge_label = f"{n_judges} judge{'s' if n_judges != 1 else ''}"
-
-            with console.status(
-                f"    [cyan]Judging baseline[/cyan] [dim]({judge_label}, waiting for API...)[/dim]",
-                spinner="dots",
-            ):
-                without_eval = evaluate_output(
-                    client, config.judge_model, config.judge_temperature,
-                    config.judge_max_tokens, task.rubric, without.output, n_judges,
+            without_evals = []
+            for j in range(n_judges):
+                judge_str = f"judge {j + 1}/{n_judges}" if n_judges > 1 else "judge"
+                with console.status(
+                    f"    [cyan]Judging baseline[/cyan] [dim]({judge_str}, waiting for API...)[/dim]",
+                    spinner="dots",
+                ):
+                    ev = evaluate_output(
+                        client, config.judge_model, config.judge_temperature,
+                        config.judge_max_tokens, task.rubric, without.output,
+                    )
+                without_evals.append(ev)
+                j_label = f"[dim]j{j + 1}[/dim] " if n_judges > 1 else ""
+                console.print(
+                    f"    [dim]Judge baseline[/dim]   {j_label}[green]done[/green]"
+                    f"  score=[bold]{ev.total_score}/{ev.max_score}[/bold]"
                 )
-            console.print(
-                f"    [dim]Judge baseline[/dim] [green]done[/green]"
-                f"  score=[bold]{without_eval.total_score}/{without_eval.max_score}[/bold]"
-            )
 
-            with console.status(
-                f"    [cyan]Judging with-skill[/cyan] [dim]({judge_label}, waiting for API...)[/dim]",
-                spinner="dots",
-            ):
-                with_eval = evaluate_output(
-                    client, config.judge_model, config.judge_temperature,
-                    config.judge_max_tokens, task.rubric, with_skill.output, n_judges,
+            with_evals = []
+            for j in range(n_judges):
+                judge_str = f"judge {j + 1}/{n_judges}" if n_judges > 1 else "judge"
+                with console.status(
+                    f"    [cyan]Judging with-skill[/cyan] [dim]({judge_str}, waiting for API...)[/dim]",
+                    spinner="dots",
+                ):
+                    ev = evaluate_output(
+                        client, config.judge_model, config.judge_temperature,
+                        config.judge_max_tokens, task.rubric, with_skill.output,
+                    )
+                with_evals.append(ev)
+                j_label = f"[dim]j{j + 1}[/dim] " if n_judges > 1 else ""
+                console.print(
+                    f"    [dim]Judge with-skill[/dim]  {j_label}[green]done[/green]"
+                    f"  score=[bold]{ev.total_score}/{ev.max_score}[/bold]"
                 )
-            console.print(
-                f"    [dim]Judge with-skill[/dim] [green]done[/green]"
-                f"  score=[bold]{with_eval.total_score}/{with_eval.max_score}[/bold]"
-            )
 
             run_pairs.append(RunPair(
                 run_index=i,
-                with_skill=with_eval,
-                without_skill=without_eval,
+                with_skill=with_evals,
+                without_skill=without_evals,
                 with_skill_output=with_skill.output,
                 without_skill_output=without.output,
                 with_skill_tokens=with_skill.input_tokens + with_skill.output_tokens,
                 without_skill_tokens=without.input_tokens + without.output_tokens,
             ))
 
-        ws = compute_stats([r.with_skill.total_score for r in run_pairs], config.confidence_level)
-        ns = compute_stats([r.without_skill.total_score for r in run_pairs], config.confidence_level)
+        ws = compute_stats([e.total_score for r in run_pairs for e in r.with_skill], config.confidence_level)
+        ns = compute_stats([e.total_score for r in run_pairs for e in r.without_skill], config.confidence_level)
         v = verdict(ws, ns)
 
         json_path, md_path, summary = write_task_results(
