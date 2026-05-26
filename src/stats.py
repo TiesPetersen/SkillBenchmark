@@ -38,9 +38,14 @@ def compute_stats(scores: List[float], confidence: float = 0.95) -> Stats:
     )
 
 
-def verdict(with_stats: Stats, without_stats: Stats) -> str:
+def verdict(with_stats: Stats, without_stats: Stats, min_meaningful_delta: float = 5.0) -> str:
     if with_stats.ci_lower > without_stats.ci_upper:
         return "skill_better"
     elif without_stats.ci_lower > with_stats.ci_upper:
         return "baseline_better"
-    return "inconclusive"
+    elif abs(with_stats.mean - without_stats.mean) < min_meaningful_delta:
+        # CIs overlap and means are close — no meaningful difference detected
+        return "no_difference"
+    else:
+        # CIs overlap but means diverge — likely a real effect, more runs needed
+        return "inconclusive"

@@ -42,13 +42,15 @@ def _serializable(obj: Any) -> Any:
 _VERDICT_LABELS = {
     "skill_better":    "Skill improves output",
     "baseline_better": "Baseline outperforms skill",
-    "inconclusive":    "Inconclusive — confidence intervals overlap",
+    "inconclusive":    "Inconclusive — likely real effect, increase runs for more signal",
+    "no_difference":   "No meaningful difference detected",
 }
 
 _VERDICT_SYMBOLS = {
     "skill_better":    "SKILL BETTER",
     "baseline_better": "BASELINE BETTER",
     "inconclusive":    "INCONCLUSIVE",
+    "no_difference":   "NO DIFFERENCE",
 }
 
 
@@ -62,6 +64,7 @@ def write_task_results(
     task: Task,
     runs: List[RunPair],
     confidence: float,
+    min_meaningful_delta: float,
     run_dir: str,
     skill_name: str,
     timestamp: str,
@@ -72,7 +75,7 @@ def write_task_results(
     without_scores = [e.total_score for r in runs for e in r.without_skill]
     ws = compute_stats(with_scores, confidence)
     ns = compute_stats(without_scores, confidence)
-    v = verdict(ws, ns)
+    v = verdict(ws, ns, min_meaningful_delta)
 
     # --- JSON ---
     json_path = os.path.join(run_dir, f"{slug}.json")

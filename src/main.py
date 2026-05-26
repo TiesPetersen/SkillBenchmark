@@ -24,11 +24,13 @@ _VERDICT_COLORS = {
     "skill_better":    "green",
     "baseline_better": "red",
     "inconclusive":    "yellow",
+    "no_difference":   "blue",
 }
 _VERDICT_LABELS = {
     "skill_better":    "SKILL BETTER",
     "baseline_better": "BASELINE BETTER",
-    "inconclusive":    "INCONCLUSIVE",
+    "inconclusive":    "INCONCLUSIVE — increase runs for more signal",
+    "no_difference":   "NO DIFFERENCE",
 }
 
 
@@ -175,10 +177,10 @@ def main() -> None:
 
         ws = compute_stats([e.total_score for r in run_pairs for e in r.with_skill], config.confidence_level)
         ns = compute_stats([e.total_score for r in run_pairs for e in r.without_skill], config.confidence_level)
-        v = verdict(ws, ns)
+        v = verdict(ws, ns, config.min_meaningful_delta)
 
         json_path, md_path, summary = write_task_results(
-            task, run_pairs, config.confidence_level, run_dir, skill_name, timestamp,
+            task, run_pairs, config.confidence_level, config.min_meaningful_delta, run_dir, skill_name, timestamp,
         )
         summaries.append(summary)
 
