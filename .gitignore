@@ -1,0 +1,8 @@
+# Ignore local ideation / context files
+/local
+
+# Ignore results directory
+/results
+
+# Ignore environment files
+.env
