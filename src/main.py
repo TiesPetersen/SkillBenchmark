@@ -5,6 +5,9 @@ from datetime import datetime
 from typing import Optional
 
 import anthropic
+from rich.console import Console
+from rich.rule import Rule
+from rich.text import Text
 
 _FRONTMATTER_NAME_RE = re.compile(r"^---\s*\nname:\s*(.+?)\s*\n", re.DOTALL)
 
@@ -14,6 +17,19 @@ from .report import RunPair, TaskSummary, create_run_dir, write_task_results, wr
 from .runner import run_task
 from .stats import compute_stats, verdict
 from .task import load_all_tasks
+
+console = Console()
+
+_VERDICT_COLORS = {
+    "skill_better":    "green",
+    "baseline_better": "red",
+    "inconclusive":    "yellow",
+}
+_VERDICT_LABELS = {
+    "skill_better":    "SKILL BETTER",
+    "baseline_better": "BASELINE BETTER",
+    "inconclusive":    "INCONCLUSIVE",
+}
 
 
 def _skill_name(content: Optional[str], skill_path: str) -> str:
@@ -26,58 +42,118 @@ def _skill_name(content: Optional[str], skill_path: str) -> str:
 
 def _load_skill(skill_path: str) -> Optional[str]:
     if not os.path.exists(skill_path):
-        print(f"Warning: no skill file found at '{skill_path}' — running baseline comparison only")
+        console.print(f"  [yellow]Warning:[/yellow] no skill file found at '{skill_path}' — running baseline comparison only")
         return None
     with open(skill_path, encoding="utf-8") as f:
         return f.read()
 
 
 def main() -> None:
-    config = load_config()
-    client = anthropic.Anthropic(api_key=config.api_key)
+    console.print()
+    console.rule("[bold]SkillBenchmark[/bold]")
+    console.print()
 
-    skill_content = _load_skill(config.skill_path)
-    skill_name = _skill_name(skill_content, config.skill_path)
+    with console.status("[dim]Loading config...[/dim]", spinner="dots"):
+        config = load_config()
+    console.print("  [green]✓[/green] Config loaded")
 
-    tasks = load_all_tasks(config.tasks_dir)
+    with console.status("[dim]Initialising Anthropic client...[/dim]", spinner="dots"):
+        client = anthropic.Anthropic(api_key=config.api_key)
+    console.print("  [green]✓[/green] Anthropic client ready")
+
+    with console.status("[dim]Loading skill...[/dim]", spinner="dots"):
+        skill_content = _load_skill(config.skill_path)
+        skill_name = _skill_name(skill_content, config.skill_path)
+    if skill_content:
+        console.print(f"  [green]✓[/green] Skill loaded: [bold]{skill_name}[/bold]")
+    else:
+        console.print(f"  [yellow]![/yellow] No skill found — baseline-only mode")
+
+    with console.status("[dim]Loading tasks...[/dim]", spinner="dots"):
+        tasks = load_all_tasks(config.tasks_dir)
     if not tasks:
-        print(f"No task files found in '{config.tasks_dir}/'")
+        console.print(f"  [red]✗[/red] No task files found in '{config.tasks_dir}/'")
         sys.exit(1)
+    console.print(f"  [green]✓[/green] {len(tasks)} task{'s' if len(tasks) != 1 else ''} loaded")
 
     n_runs = config.number_of_runs_per_task
     n_judges = config.number_of_judges_per_run
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = create_run_dir(config.results_dir, skill_name, timestamp)
+    console.print(f"  [green]✓[/green] Output directory: [dim]{run_dir}[/dim]")
 
-    print(f"Tasks:  {len(tasks)}")
-    print(f"Runs:   {n_runs} per task")
-    print(f"Judges: {n_judges} per run")
-    print(f"Runner: {config.runner_model}  (temperature={config.runner_temperature})")
-    print(f"Judge:  {config.judge_model}  (temperature={config.judge_temperature})")
-    print(f"Skill:  {skill_name}")
-    print(f"Output: {run_dir}")
-    print()
-
-    _VERDICT_LABELS = {
-        "skill_better":    "SKILL BETTER",
-        "baseline_better": "BASELINE BETTER",
-        "inconclusive":    "INCONCLUSIVE",
-    }
+    console.print()
+    console.print("  [dim]Runner :[/dim] " + f"{config.runner_model}  (temp={config.runner_temperature})")
+    console.print("  [dim]Judge  :[/dim] " + f"{config.judge_model}  (temp={config.judge_temperature})")
+    console.print("  [dim]Runs   :[/dim] " + f"{n_runs} per task  |  Judges: {n_judges} per run")
+    console.print()
+    console.rule()
+    console.print()
 
     summaries: list[TaskSummary] = []
+    total_tasks = len(tasks)
+    total_api_calls = total_tasks * n_runs * (2 + 2 * n_judges)
 
-    for task in tasks:
-        print(f"[Task] {task.name}")
+    for task_idx, task in enumerate(tasks):
+        console.print(f"[bold]Task {task_idx + 1}/{total_tasks}:[/bold] {task.name}")
         run_pairs = []
 
         for i in range(n_runs):
-            print(f"  Run {i + 1}/{n_runs} ...", end=" ", flush=True)
+            console.print(f"  [dim]Run {i + 1}/{n_runs}[/dim]")
 
-            without = run_task(client, config.runner_model, config.runner_temperature, config.runner_max_tokens, task, skill_content=None)
-            with_skill = run_task(client, config.runner_model, config.runner_temperature, config.runner_max_tokens, task, skill_content=skill_content)
+            with console.status(
+                f"    [cyan]Running baseline[/cyan] [dim](no skill, waiting for API...)[/dim]",
+                spinner="dots",
+            ):
+                without = run_task(
+                    client, config.runner_model, config.runner_temperature,
+                    config.runner_max_tokens, task, skill_content=None,
+                )
+            console.print(
+                f"    [dim]Baseline[/dim]     [green]done[/green]"
+                f"  [dim]{without.input_tokens + without.output_tokens} tokens[/dim]"
+            )
 
-            without_eval = evaluate_output(client, config.judge_model, config.judge_temperature, config.judge_max_tokens, task.rubric, without.output, n_judges)
-            with_eval = evaluate_output(client, config.judge_model, config.judge_temperature, config.judge_max_tokens, task.rubric, with_skill.output, n_judges)
+            with console.status(
+                f"    [cyan]Running with skill[/cyan] [dim](waiting for API...)[/dim]",
+                spinner="dots",
+            ):
+                with_skill = run_task(
+                    client, config.runner_model, config.runner_temperature,
+                    config.runner_max_tokens, task, skill_content=skill_content,
+                )
+            console.print(
+                f"    [dim]With skill[/dim]   [green]done[/green]"
+                f"  [dim]{with_skill.input_tokens + with_skill.output_tokens} tokens[/dim]"
+            )
+
+            judge_label = f"{n_judges} judge{'s' if n_judges != 1 else ''}"
+
+            with console.status(
+                f"    [cyan]Judging baseline[/cyan] [dim]({judge_label}, waiting for API...)[/dim]",
+                spinner="dots",
+            ):
+                without_eval = evaluate_output(
+                    client, config.judge_model, config.judge_temperature,
+                    config.judge_max_tokens, task.rubric, without.output, n_judges,
+                )
+            console.print(
+                f"    [dim]Judge baseline[/dim] [green]done[/green]"
+                f"  score=[bold]{without_eval.total_score}/{without_eval.max_score}[/bold]"
+            )
+
+            with console.status(
+                f"    [cyan]Judging with-skill[/cyan] [dim]({judge_label}, waiting for API...)[/dim]",
+                spinner="dots",
+            ):
+                with_eval = evaluate_output(
+                    client, config.judge_model, config.judge_temperature,
+                    config.judge_max_tokens, task.rubric, with_skill.output, n_judges,
+                )
+            console.print(
+                f"    [dim]Judge with-skill[/dim] [green]done[/green]"
+                f"  score=[bold]{with_eval.total_score}/{with_eval.max_score}[/bold]"
+            )
 
             run_pairs.append(RunPair(
                 run_index=i,
@@ -89,17 +165,25 @@ def main() -> None:
                 without_skill_tokens=without.input_tokens + without.output_tokens,
             ))
 
-            print(f"with={with_eval.total_score}  without={without_eval.total_score}")
-
         ws = compute_stats([r.with_skill.total_score for r in run_pairs], config.confidence_level)
         ns = compute_stats([r.without_skill.total_score for r in run_pairs], config.confidence_level)
         v = verdict(ws, ns)
 
-        json_path, md_path, summary = write_task_results(task, run_pairs, config.confidence_level, run_dir, skill_name, timestamp)
+        json_path, md_path, summary = write_task_results(
+            task, run_pairs, config.confidence_level, run_dir, skill_name, timestamp,
+        )
         summaries.append(summary)
 
-        print(f"  => {_VERDICT_LABELS[v]}  (with: {ws.mean:.1f} | without: {ns.mean:.1f})")
-        print()
+        color = _VERDICT_COLORS[v]
+        label = _VERDICT_LABELS[v]
+        ci_pct = int(config.confidence_level * 100)
+        console.print(
+            f"\n  [{color}][bold]{label}[/bold][/{color}]"
+            f"  [dim]with-skill: {ws.mean:.1f} [{ws.ci_lower:.1f}, {ws.ci_upper:.1f}]"
+            f"  |  baseline: {ns.mean:.1f} [{ns.ci_lower:.1f}, {ns.ci_upper:.1f}]"
+            f"  ({ci_pct}% CI)[/dim]"
+        )
+        console.print()
 
     config_snapshot = {
         "runner_model": config.runner_model,
@@ -111,5 +195,21 @@ def main() -> None:
     }
     overview_path = write_overview(summaries, run_dir, skill_name, timestamp, config_snapshot)
 
-    print(f"Results: {run_dir}")
-    print(f"Overview: {overview_path}")
+    console.rule()
+    console.print()
+
+    # Final summary table
+    console.print("[bold]Summary[/bold]")
+    console.print()
+    for s in summaries:
+        v = s.verdict
+        color = _VERDICT_COLORS.get(v, "white")
+        label = _VERDICT_LABELS.get(v, v.upper())
+        console.print(
+            f"  [{color}]{label:<18}[/{color}]  [dim]{s.task_name}[/dim]"
+        )
+
+    console.print()
+    console.print(f"[bold]Done.[/bold]  Results: [dim]{run_dir}[/dim]")
+    console.print(f"         Overview: [dim]{overview_path}[/dim]")
+    console.print()
