@@ -21,9 +21,9 @@ The blind judging design removes author bias: the judge has no way to favour the
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # add your ANTHROPIC_API_KEY
+cp .env.example .env        # add your ANTHROPIC_API_KEY as well
 ```
-
+Add your skill to the `/skills` directory.
 Edit `config.yml` to set your model, number of runs, and skill path.
 
 ## Usage
