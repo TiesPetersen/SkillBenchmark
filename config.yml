@@ -1,0 +1,4 @@
+---
+# default configuration file, change values as needed
+
+number_of_runs_per_task: 3

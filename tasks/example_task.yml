@@ -1,0 +1,82 @@
+---
+# This is an example task file. Adapt it your needs, but make sure to follow the structure and include all necessary information for the task and the rubric. 
+
+
+# Meta information about the task
+name: "Write a product landing page"
+version: "1.0"
+
+
+# The task description. Should be clear and specific, providing all necessary information. Should be very clear on the expected output format (e.g., HTML code, JSON, etc.)
+# The task description will only be visibled to the runner LLM, not to the judge LLM.
+task:
+    # General context of the task for runner LLM, can also include general framework for how to approach the task.
+    context: |
+      You are a skilled web designer and copywriter tasked with creating a compelling product landing page for a new software tool called "TaskMaster". Your goal is to create a landing page that effectively communicates the value proposition of TaskMaster, highlights its key features, and encourages visitors to take action (e.g., sign up for a free trial, contact sales, etc.). The design should be clean and modern, with a consistent color scheme that reflects the brand identity of TaskMaster. The content should be clear, concise, and engaging, with a strong focus on the benefits of using TaskMaster.
+
+    # The main instruction for the task, describing what the runner LLM should do. Should be clear and specific, providing all necessary information for the runner LLM to complete the task effectively.
+    description: |
+      Write a product landing page for a new software tool called "TaskMaster". The landing page should include the following sections:
+      1. Hero Section: A catchy headline, a brief description of the product, and a call-to-action button.
+      2. Features Section: A list of the key features of TaskMaster, with brief descriptions and icons.
+      3. Testimonials Section: A few testimonials from satisfied users, including their names and photos.
+      4. Pricing Section: A clear and concise pricing table with different plans and their features.
+      5. Footer: Contact information, social media links, and a newsletter signup form.
+      The landing page should be visually appealing, easy to navigate, and optimized for conversions. Use a clean and modern design with a color scheme that reflects the brand identity of TaskMaster.
+      Please provide just the HTML code for the landing page, without any additional explanations or comments.
+
+
+# The rubric for evaluating the response. Should be clear and specific, providing all necessary information for the judge LLM to evaluate the response effectively.
+# The rubric will only be visibled to the judge LLM, not to the runner LLM. 
+rubric:
+    # General context of the task for judge LLM, can also include general framework for evaluation
+    context: |
+      TaskMaster is a new software tool designed to help teams manage their tasks and projects more efficiently. The landing page should effectively communicate the value proposition of TaskMaster, highlight its key features, and encourage visitors to take action (e.g., sign up for a free trial, contact sales, etc.). The design should be clean and modern, with a consistent color scheme that reflects the brand identity of TaskMaster. The content should be clear, concise, and engaging, with a strong focus on the benefits of using TaskMaster.
+    
+    # Detailed criteria for scoring the response
+    criteria:
+      - name: Headline clarity
+        points: 20
+        levels:
+          - range: [0, 10]
+            description: "The headline is unclear and does not effectively communicate the product's value proposition."
+          - range: [11, 15]
+            description: "The headline is somewhat clear but could be more concise and impactful."
+          - range: [16, 20]
+            description: "The headline is clear and effectively communicates the product's value proposition."
+      - name: Feature presentation
+        points: 30
+        levels:
+          - range: [0, 15]
+            description: "The features are not well-presented and lack clear descriptions or icons."
+          - range: [16, 25]
+            description: "The features are presented with some clarity but could be more visually appealing."
+          - range: [26, 30]
+            description: "The features are well-presented with clear descriptions and visually appealing icons."
+      - name: Testimonials quality
+        points: 20
+        levels:
+          - range: [0, 10]
+            description: "The testimonials are generic and do not provide specific insights into the product's benefits."
+          - range: [11, 15]
+            description: "The testimonials provide some insights but could be more specific and compelling."
+          - range: [16, 20]
+            description: "The testimonials are specific, compelling, and effectively highlight the product's benefits."
+      - name: Pricing clarity
+        points: 20
+        levels:
+          - range: [0, 10]
+            description: "The pricing information is unclear and does not effectively communicate the value of each plan."
+          - range: [11, 15]
+            description: "The pricing information is somewhat clear but could be more concise and easy to understand."
+          - range: [16, 20]
+            description: "The pricing information is clear and effectively communicates the value of each plan."
+      - name: Overall design and usability
+        points: 10
+        levels:
+          - range: [0, 5]
+            description: "The design is cluttered and difficult to navigate, negatively impacting user experience."
+          - range: [6, 8]
+            description: "The design is somewhat clean but could be more visually appealing and easier to navigate."
+          - range: [9, 10]
+            description: "The design is clean, visually appealing, and easy to navigate, enhancing user experience."
