@@ -1,9 +1,14 @@
 ---
 # default configuration file, change values as needed
 
-number_of_runs_per_task: 3          # number of times each task will be run, with different random seeds (if applicable)
+number_of_runs_per_task: 1          # number of times each task will be run. If set to more than 1, the final score for each task will be the average of the scores from all runs.
 number_of_judges_per_run: 1         # number of judges that will evaluate each run of the task. If set to more than 1, the final score for each run will be the average of the scores given by all judges.
-runner_model: claude-sonnet-4.6     # the model that will be used to run the tasks. Choose from the available models in your Anthropic account.
-judge_model: claude-sonnet-4.6      # the model that will be used to evaluate the responses. Choose from the available models in your Anthropic account. It is recommended to use a different model for judging than for running the tasks, to ensure a more objective evaluation.
+runner_model: claude-haiku-4-5      # the model that will be used to run the tasks. Choose from the available models in your Anthropic account.
+judge_model: claude-haiku-4-5       # the model that will be used to evaluate the responses. Choose from the available models in your Anthropic account. It is recommended to use a different model for judging than for running the tasks, to ensure a more objective evaluation.
 runner_temperature: 0.7             # the temperature setting for the runner model. Higher values (e.g., 0.7) result in more creative and varied outputs, while lower values (e.g., 0.0) produce more deterministic and focused outputs.
 judge_temperature: 0.0              # the temperature setting for the judge model. Higher values (e.g., 0.7) result in more creative and varied evaluations, while lower values (e.g., 0.0) produce more deterministic and focused evaluations.
+
+skill_path: skills/example-skill/SKILL.md  # path to the SKILL.md to benchmark (each skill lives in its own folder under skills/)
+tasks_dir: tasks                    # directory containing task YAML files
+results_dir: results                # directory where results will be written
+confidence_level: 0.95              # confidence level for the confidence intervals (e.g., 0.95 for 95%)
