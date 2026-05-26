@@ -1,82 +1,84 @@
 ---
-# This is an example task file. Adapt it your needs, but make sure to follow the structure and include all necessary information for the task and the rubric. 
+# This is an example task file. Adapt it to your needs, but make sure to follow the structure and include all necessary information for the task and the rubric.
 
 
 # Meta information about the task
-name: "Write a product landing page"
+name: "Write an incident postmortem"
 version: "1.0"
 
 
-# The task description. Should be clear and specific, providing all necessary information. Should be very clear on the expected output format (e.g., HTML code, JSON, etc.)
-# The task description will only be visibled to the runner LLM, not to the judge LLM.
+# The task description. Should be clear and specific, providing all necessary information. Should be very clear on the expected output format.
+# The task description will only be visible to the runner LLM, not to the judge LLM.
 task:
-    # General context of the task for runner LLM, can also include general framework for how to approach the task.
+    # General context for the runner LLM.
     context: |
-      You are a skilled web designer and copywriter tasked with creating a compelling product landing page for a new software tool called "TaskMaster". Your goal is to create a landing page that effectively communicates the value proposition of TaskMaster, highlights its key features, and encourages visitors to take action (e.g., sign up for a free trial, contact sales, etc.). The design should be clean and modern, with a consistent color scheme that reflects the brand identity of TaskMaster. The content should be clear, concise, and engaging, with a strong focus on the benefits of using TaskMaster.
+      You are a senior engineer at a tech company. An incident has just been resolved and you need to write the official postmortem report for your team and stakeholders.
 
-    # The main instruction for the task, describing what the runner LLM should do. Should be clear and specific, providing all necessary information for the runner LLM to complete the task effectively.
+    # The main instruction describing what the runner LLM should produce.
     description: |
-      Write a product landing page for a new software tool called "TaskMaster". The landing page should include the following sections:
-      1. Hero Section: A catchy headline, a brief description of the product, and a call-to-action button.
-      2. Features Section: A list of the key features of TaskMaster, with brief descriptions and icons.
-      3. Testimonials Section: A few testimonials from satisfied users, including their names and photos.
-      4. Pricing Section: A clear and concise pricing table with different plans and their features.
-      5. Footer: Contact information, social media links, and a newsletter signup form.
-      The landing page should be visually appealing, easy to navigate, and optimized for conversions. Use a clean and modern design with a color scheme that reflects the brand identity of TaskMaster.
-      Please provide just the HTML code for the landing page, without any additional explanations or comments.
+      The following incident occurred. Write a complete postmortem report for it.
+
+      INCIDENT DESCRIPTION:
+      On Tuesday at 2:47 AM UTC, the payment processing service became unresponsive. The on-call engineer was paged at 2:51 AM. Investigation revealed that a database migration deployed at 11:30 PM the previous evening had added an unindexed foreign key lookup to the most frequent payment query. Under overnight batch processing load, query times degraded from 12ms to 45 seconds, causing connection pool exhaustion. The payment service was fully down from 3:04 AM to 4:38 AM UTC. Approximately 2,300 payment attempts failed during the outage. The fix was to add the missing index, which was deployed at 4:31 AM and fully resolved by 4:38 AM.
+
+      Write the postmortem report as plain text or markdown. Include all key details.
 
 
-# The rubric for evaluating the response. Should be clear and specific, providing all necessary information for the judge LLM to evaluate the response effectively.
-# The rubric will only be visibled to the judge LLM, not to the runner LLM. 
+# The rubric for evaluating the response. Should be clear and specific, providing all necessary information for the judge LLM to score the response.
+# The rubric will only be visible to the judge LLM, not to the runner LLM.
 rubric:
-    # General context of the task for judge LLM, can also include general framework for evaluation
+    # General context for the judge LLM.
     context: |
-      TaskMaster is a new software tool designed to help teams manage their tasks and projects more efficiently. The landing page should effectively communicate the value proposition of TaskMaster, highlight its key features, and encourage visitors to take action (e.g., sign up for a free trial, contact sales, etc.). The design should be clean and modern, with a consistent color scheme that reflects the brand identity of TaskMaster. The content should be clear, concise, and engaging, with a strong focus on the benefits of using TaskMaster.
-    
-    # Detailed criteria for scoring the response
+      This is a postmortem for a payment service outage caused by a missing database index on a foreign key introduced in a migration. The incident lasted approximately 94 minutes with ~2,300 failed payment attempts. A good postmortem is specific, actionable, and structured — it should allow any engineer who was not present to fully understand what happened, why, and what will be done to prevent recurrence.
+
+    # Detailed scoring criteria.
     criteria:
-      - name: Headline clarity
+      - name: Timeline
         points: 20
         levels:
-          - range: [0, 10]
-            description: "The headline is unclear and does not effectively communicate the product's value proposition."
-          - range: [11, 15]
-            description: "The headline is somewhat clear but could be more concise and impactful."
-          - range: [16, 20]
-            description: "The headline is clear and effectively communicates the product's value proposition."
-      - name: Feature presentation
-        points: 30
+          - range: [0, 8]
+            description: "No timeline present, or a vague narrative without specific times."
+          - range: [9, 14]
+            description: "Timeline present but incomplete — missing key events or uses approximate times."
+          - range: [15, 20]
+            description: "Clear chronological timeline with specific timestamps covering detection, investigation, mitigation, and resolution."
+
+      - name: Root cause analysis
+        points: 25
         levels:
-          - range: [0, 15]
-            description: "The features are not well-presented and lack clear descriptions or icons."
-          - range: [16, 25]
-            description: "The features are presented with some clarity but could be more visually appealing."
-          - range: [26, 30]
-            description: "The features are well-presented with clear descriptions and visually appealing icons."
-      - name: Testimonials quality
+          - range: [0, 10]
+            description: "Root cause missing, vague ('database issue'), or incorrect."
+          - range: [11, 18]
+            description: "Root cause identified but causation chain is incomplete — does not explain why the migration caused the failure."
+          - range: [19, 25]
+            description: "Root cause clearly identified with full causation chain: migration added unindexed FK → query degraded → connection pool exhausted → service down."
+
+      - name: Impact assessment
         points: 20
         levels:
-          - range: [0, 10]
-            description: "The testimonials are generic and do not provide specific insights into the product's benefits."
-          - range: [11, 15]
-            description: "The testimonials provide some insights but could be more specific and compelling."
-          - range: [16, 20]
-            description: "The testimonials are specific, compelling, and effectively highlight the product's benefits."
-      - name: Pricing clarity
-        points: 20
+          - range: [0, 8]
+            description: "Impact vague or absent ('some users were affected')."
+          - range: [9, 14]
+            description: "Impact partially quantified — mentions the outage but missing duration, user count, or affected service."
+          - range: [15, 20]
+            description: "Impact fully quantified: duration (~94 min), users/transactions affected (~2,300 failed payments), and service scope (payment processing)."
+
+      - name: Action items
+        points: 25
         levels:
           - range: [0, 10]
-            description: "The pricing information is unclear and does not effectively communicate the value of each plan."
-          - range: [11, 15]
-            description: "The pricing information is somewhat clear but could be more concise and easy to understand."
-          - range: [16, 20]
-            description: "The pricing information is clear and effectively communicates the value of each plan."
-      - name: Overall design and usability
+            description: "No action items, or generic items with no owner or timeline ('we will improve monitoring')."
+          - range: [11, 18]
+            description: "Action items present but incomplete — some lack owners, deadlines, or specificity."
+          - range: [19, 25]
+            description: "At least 3 specific, actionable items each with a clear owner role and deadline (e.g., 'Add migration linter to CI to flag unindexed FKs — Platform team — 2 weeks')."
+
+      - name: Executive summary
         points: 10
         levels:
-          - range: [0, 5]
-            description: "The design is cluttered and difficult to navigate, negatively impacting user experience."
-          - range: [6, 8]
-            description: "The design is somewhat clean but could be more visually appealing and easier to navigate."
-          - range: [9, 10]
-            description: "The design is clean, visually appealing, and easy to navigate, enhancing user experience."
+          - range: [0, 4]
+            description: "No summary, or one that requires reading the full document to understand what happened."
+          - range: [5, 7]
+            description: "Summary present but missing severity, duration, or impact at a glance."
+          - range: [8, 10]
+            description: "Concise summary (3–5 sentences) covering severity, affected service, duration, and user impact — readable standalone."
