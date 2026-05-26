@@ -7,7 +7,7 @@ runner_model: claude-haiku-4-5      # the model that will be used to run the tas
 judge_model: claude-haiku-4-5       # the model that will be used to evaluate the responses. Choose from the available models in your Anthropic account. It is recommended to use a different model for judging than for running the tasks, to ensure a more objective evaluation.
 runner_temperature: 0.7             # the temperature setting for the runner model. Higher values (e.g., 0.7) result in more creative and varied outputs, while lower values (e.g., 0.0) produce more deterministic and focused outputs.
 runner_max_tokens: 4096             # maximum number of tokens the runner model can generate. Increase for longer outputs (e.g. full documents, code). Max depends on the model.
-judge_temperature: 0.0              # the temperature setting for the judge model. Higher values (e.g., 0.7) result in more creative and varied evaluations, while lower values (e.g., 0.0) produce more deterministic and focused evaluations.
+judge_temperature: 0.1              # the temperature setting for the judge model. Higher values (e.g., 0.7) result in more creative and varied evaluations, while lower values (e.g., 0.0) produce more deterministic and focused evaluations.
 judge_max_tokens: 1024              # maximum number of tokens the judge model can generate. Rarely needs to exceed 1024 since the output is structured JSON.
 
 skill_path: skills/example-skill/SKILL.md  # path to the SKILL.md to benchmark (each skill lives in its own folder under skills/)

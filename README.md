@@ -1,6 +1,6 @@
 # SkillBenchmark
 
-**Objective benchmarking for Agent Skills (SKILL.md files).** Measures whether a skill actually improves LLM output quality — and by how much — using blind judge evaluation and confidence intervals.
+**Benchmarking for Agent Skills (SKILL.md files).** Measures whether a skill actually improves LLM output quality, and by how much, using blind judge evaluation and confidence intervals.
 
 > Thousands of Agent Skills exist across public registries. There is no systematic way to know whether any of them actually work. SkillBenchmark fills that gap.
 
@@ -10,7 +10,7 @@
 
 An Agent Skill is only as good as the improvement it produces. Right now, skill authors publish based on intuition, and users install based on anecdote. There is no objective way to answer:
 
-- Does this skill improve output quality — and by how much?
+- Does this skill improve output quality, and by how much?
 - Does it do so consistently, or only on certain task types?
 - Is the quality improvement worth the extra token cost?
 
@@ -18,9 +18,9 @@ An Agent Skill is only as good as the improvement it produces. Right now, skill 
 
 ## How it works
 
-SkillBenchmark runs each task N times. Each run produces two outputs: one from the LLM without any skill, one with the skill injected as a system prompt. Both outputs are then passed independently to a judge LLM that scores them against a rubric — without knowing which is which, and without ever seeing the original task prompt. After all runs, confidence intervals are computed over the scores for each condition and compared to produce a verdict.
+SkillBenchmark runs each task N times. Each run produces two outputs: one from the LLM without any skill, one with the skill injected as a system prompt. Both outputs are then passed independently to a judge LLM that scores them against a rubric, without knowing which is which, and without ever seeing the original task prompt. After all runs, confidence intervals are computed over the scores for each condition and compared to produce a verdict.
 
-**Blind evaluation** removes author bias. The judge receives only the output and the rubric — never the task prompt, never any indication of which condition produced the output.
+**Blind evaluation** removes author bias. The judge receives only the output and the rubric, never the task prompt, never any indication of which condition produced the output.
 
 **Confidence intervals** (t-distribution) determine the verdict:
 - `SKILL BETTER` — with-skill CI is entirely above without-skill CI
@@ -28,6 +28,8 @@ SkillBenchmark runs each task N times. Each run produces two outputs: one from t
 - `INCONCLUSIVE` — CIs overlap (increase runs for more signal)
 
 **Token cost** is tracked per run as a first-class metric alongside quality scores.
+
+> **Current scope:** SkillBenchmark currently evaluates skills on raw text LLM calls: single-turn prompt-in, response-out. This covers a large class of skills but misses skills that are designed to guide multi-step agent behaviour. The next major milestone is full agent environment support: sandboxed tool-use runs where a skill's effect on multi-turn, agentic tasks can be measured end-to-end. If you're interested in contributing or have ideas about what that should look like, reach out on [LinkedIn](https://linkedin.com/in/tiespetersen) :)
 
 ---
 
@@ -50,7 +52,7 @@ Drop your skill into `skills/` and point `config.yml` at it:
 skill_path: skills/my-skill/SKILL.md
 ```
 
-Add your tasks to `tasks/` — each task is a YAML file with a prompt and a scoring rubric. An example task is included to get you started. The more tasks you add, the more meaningful the benchmark results will be.
+Add your tasks to `tasks/`, each task is a YAML file with a prompt and a scoring rubric (see section [Writing Tasks](#writing-tasks)). An example task is included to get you started. The more tasks you add, the more meaningful the benchmark results will be.
 
 Run the benchmark:
 ```bash
@@ -99,7 +101,7 @@ runner_temperature: 0.7
 runner_max_tokens: 4096
 
 judge_model: claude-sonnet-4-6
-judge_temperature: 0.0
+judge_temperature: 0.1
 judge_max_tokens: 1024
 
 skill_path: skills/my-skill/SKILL.md
@@ -110,7 +112,7 @@ confidence_level: 0.95
 
 **`number_of_runs_per_task`** — How many times each task is run in full (both with and without skill). Each run is an independent sample. More runs produce tighter confidence intervals and more reliable verdicts, but cost more tokens. Use 3 during development and 10+ before drawing real conclusions.
 
-**`number_of_judges_per_run`** — How many times the judge LLM scores each output. Multiple judges average out scoring inconsistency. 1 is fine for quick tests; use 3 for important benchmarks.
+**`number_of_judges_per_run`** — How many times the judge LLM scores each output. Multiple judges average out scoring inconsistency. 1 is fine for quick tests; use 3+ for important benchmarks.
 
 **`runner_model`** — The model used to complete the tasks. This is what you're measuring the skill's effect on.
 
@@ -120,7 +122,7 @@ confidence_level: 0.95
 
 **`judge_model`** — The model used to score outputs. Using a different model than the runner reduces the risk of one model systematically favouring its own style of output.
 
-**`judge_temperature`** — Controls how consistent the judge's scores are. Keep this at 0 so the judge produces deterministic, repeatable scores rather than varying scores for the same output.
+**`judge_temperature`** — Controls how consistent the judge's scores are. Keep this at 0.0-0.2 so the judge produces deterministic, repeatable scores rather than varying scores for the same output.
 
 **`judge_max_tokens`** — The maximum length of the judge's response. The judge only returns structured JSON, so 1024 is almost always sufficient.
 
@@ -134,7 +136,7 @@ confidence_level: 0.95
 
 ## Writing tasks
 
-Tasks live in `tasks/` as YAML files. Each file defines the prompt given to the runner LLM and a scoring rubric given only to the judge — they are kept separate so the judge cannot reverse-engineer which output was "helped".
+Tasks live in `tasks/` as YAML files. Each file defines the prompt given to the runner LLM and a scoring rubric given only to the judge. They are kept separate so the judge cannot reverse-engineer which output was "helped".
 
 ```yaml
 name: "Write an incident postmortem"
@@ -174,11 +176,11 @@ rubric:
         - range: [19, 25]
           description: "Full causation chain explained across at least two levels of why."
 
-    # ... more criteria, summing to 100 pts total
+    # ... more criteria
 ```
 
 **Task design tips:**
-- The rubric should reward exactly what the skill claims to improve — this is what creates a measurable delta
+- The rubric should be written generically enough, so that the LLM using the skill doesn't have an advantage, because the rubric is focused on exactly what the skill is designed to improve. For example, if the skill is designed to help with structured output, the rubric should reward good structure but not explicitly call out "used the exact format from the skill instructions".
 - Each criterion's levels should be clearly distinguishable so the judge produces consistent scores
 - The `context` in the rubric gives the judge background without revealing the task prompt
 
@@ -248,31 +250,15 @@ Criterion breakdown (mean across runs):
 
 ---
 
-## Philosophy
-
-**Blind evaluation over subjective preference.**
-The judge never knows which output used the skill. This mirrors how rigorous AI benchmarks work and removes author bias from results.
-
-**Relative improvement over absolute scores.**
-The goal is not a universal quality score. It is to measure the delta a specific skill produces on a specific category of tasks.
-
-**Token cost is a first-class metric.**
-Quality improvements that come at disproportionate token cost are not free. Every run logs token usage for both conditions.
-
-**Reproducibility over impressiveness.**
-Every prompt, output, score, and reasoning is stored in the JSON log. Nothing is hidden.
-
----
-
 ## Limitations
 
 - **Text output only (v1).** Agentic / file-writing runs are not yet supported.
-- **Claude API only (v1).** Multi-provider support is planned.
-- **Small N = wide CIs.** With 3 runs, confidence intervals are wide. Use 10+ runs before drawing conclusions.
-- **Judge consistency.** A single LLM judge can be inconsistent. Use `number_of_judges_per_run: 3` to average out variance for important benchmarks.
+  > Help wanted! If you have ideas or want to contribute, reach out on [LinkedIn](https://linkedin.com/in/tiespetersen).
+- **Claude API only (v1).** Multi-provider support is planned if there's interest.
+  > If you'd like to see support for your model of choice, let me know on [LinkedIn](https://linkedin.com/in/tiespetersen) or open an issue. If enough people want it, it'll move up the priority list.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Built by [Ties Petersen](https://github.com/tiespetersen).
+MIT — see [LICENSE](LICENSE). Built by [Ties Petersen](https://github.com/tiespetersen) ([Linkedin](https://linkedin.com/in/tiespetersen))
