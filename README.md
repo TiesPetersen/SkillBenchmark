@@ -20,6 +20,8 @@ An Agent Skill is only as good as the improvement it produces. Right now, skill 
 
 SkillBenchmark runs each task N times. Each run produces two outputs: one from the LLM without any skill, one with the skill injected as a system prompt. Both outputs are then passed independently to a judge LLM that scores them against a rubric, without knowing which is which, and without ever seeing the original task prompt. After all runs, confidence intervals are computed over the scores for each condition and compared to produce a verdict.
 
+### Notes:
+
 **Blind evaluation** removes author bias. The judge receives only the output and the rubric, never the task prompt, never any indication of which condition produced the output.
 
 **On LLM-as-judge reliability:** any individual LLM judge can be inconsistent or biased. SkillBenchmark mitigates this in two ways: (1) the same judge scores both conditions under identical prompting, so systematic bias cancels out in the comparison; (2) using multiple judges per run and averaging their scores reduces random variance. The rubric is the main lever for quality: clear, distinguishable scoring levels produce more consistent results than vague ones.
