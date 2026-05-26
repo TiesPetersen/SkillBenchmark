@@ -1,0 +1,73 @@
+name: "Write a user-facing error message"
+version: "1.0"
+
+task:
+  context: |
+    You are a product engineer at a SaaS company. You are implementing the error state
+    for a sign-up form in a web application aimed at non-technical business users.
+
+  description: |
+    A user has submitted the sign-up form with the following details:
+      - Name: Sarah Chen
+      - Email: sarah.chen@acmecorp.com
+      - Password: (valid)
+
+    The backend returns HTTP 422 with the reason: the email address is already registered
+    to an existing account.
+
+    Write the complete error UI copy that will be shown to the user. This should include:
+      1. A short error title (shown in bold at the top of the form)
+      2. A one or two sentence explanation of what went wrong
+      3. A clear call to action telling Sarah what she should do next
+
+    Write as plain text, using the three sections above. Do not include any code or
+    technical details. Aim for a tone that is calm, helpful, and non-alarming.
+
+
+rubric:
+  context: |
+    The user (Sarah) is a non-technical business user who tried to create an account but
+    already has one. She should not see HTTP status codes, "422", "POST request", or any
+    other technical language. Good error copy is calm, human, immediately clear about
+    what happened, and tells the user exactly what to do next without overwhelming them.
+
+  criteria:
+    - name: Clarity for a non-technical user
+      points: 30
+      levels:
+        - range: [0, 12]
+          description: "Contains technical language (422, HTTP, request, payload, endpoint) or is unclear about what actually went wrong."
+        - range: [13, 21]
+          description: "Free of technical jargon but the explanation is vague or could apply to multiple error types."
+        - range: [22, 30]
+          description: "Immediately clear to a non-technical user: the email is already in use. No jargon. Any reader would understand at a glance."
+
+    - name: Actionability
+      points: 30
+      levels:
+        - range: [0, 12]
+          description: "No next step given, or the action is vague ('try again', 'contact support' with no further direction)."
+        - range: [13, 21]
+          description: "Provides a next step but it is incomplete — e.g. mentions logging in but does not mention the forgotten password path."
+        - range: [22, 30]
+          description: "Gives Sarah a concrete, complete path forward: sign in to her existing account, and recover her password if she has forgotten it."
+
+    - name: Tone
+      points: 20
+      levels:
+        - range: [0, 8]
+          description: "Tone is alarming, blaming, overly apologetic, or robotic."
+        - range: [9, 14]
+          description: "Tone is neutral but feels generic or impersonal."
+        - range: [15, 20]
+          description: "Calm, helpful, and appropriately brief. Reads like a real product, not a system message."
+
+    - name: Structure and completeness
+      points: 20
+      levels:
+        - range: [0, 8]
+          description: "Missing one or more of the three required sections (title, explanation, call to action)."
+        - range: [9, 14]
+          description: "All three sections present but one is thin — e.g. a title that duplicates the explanation, or a CTA that is only one word."
+        - range: [15, 20]
+          description: "All three sections present, distinct, and doing their own job. Title is scannable, explanation adds context, CTA drives action."

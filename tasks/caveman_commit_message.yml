@@ -1,0 +1,119 @@
+name: "Write a commit message for a code diff"
+version: "1.0"
+
+task:
+  context: |
+    You are a software engineer committing a change to a Python backend codebase. The
+    project follows the Conventional Commits specification. Write the git commit message
+    for the diff below.
+
+  description: |
+    Write a git commit message for the following diff. Follow Conventional Commits format:
+    a subject line of the form `type(scope): description` (≤72 characters), a blank line,
+    then a short body explaining what changed and why. Plain text only — no markdown fences.
+
+    ```diff
+    diff --git a/src/auth/rate_limiter.py b/src/auth/rate_limiter.py
+    --- a/src/auth/rate_limiter.py
+    +++ b/src/auth/rate_limiter.py
+    @@ -14,12 +14,18 @@ class RateLimiter:
+         def __init__(self, max_attempts: int = 5, window_seconds: int = 900):
+             self.max_attempts = max_attempts
+             self.window_seconds = window_seconds
+    -        self.attempts: dict[str, list[float]] = {}
+    +        self._attempts: dict[str, list[float]] = {}
+
+         def is_allowed(self, key: str) -> bool:
+             now = time.time()
+    -        window_start = now - self.window_seconds
+    -        if key not in self.attempts:
+    -            self.attempts[key] = []
+    -        self.attempts[key] = [t for t in self.attempts[key] if t > window_start]
+    -        if len(self.attempts[key]) >= self.max_attempts:
+    -            return False
+    -        self.attempts[key].append(now)
+    -        return True
+    +        self._prune_window(key, now)
+    +        if len(self._attempts.get(key, [])) >= self.max_attempts:
+    +            return False
+    +        self._attempts.setdefault(key, []).append(now)
+    +        return True
+    +
+    +    def _prune_window(self, key: str, now: float) -> None:
+    +        window_start = now - self.window_seconds
+    +        if key in self._attempts:
+    +            self._attempts[key] = [t for t in self._attempts[key] if t > window_start]
+
+    diff --git a/tests/auth/test_rate_limiter.py b/tests/auth/test_rate_limiter.py
+    --- /dev/null
+    +++ b/tests/auth/test_rate_limiter.py
+    @@ -0,0 +1,18 @@
+    +import time
+    +from src.auth.rate_limiter import RateLimiter
+    +
+    +def test_allows_up_to_max_attempts():
+    +    limiter = RateLimiter(max_attempts=3, window_seconds=60)
+    +    assert limiter.is_allowed("user_1") is True
+    +    assert limiter.is_allowed("user_1") is True
+    +    assert limiter.is_allowed("user_1") is True
+    +    assert limiter.is_allowed("user_1") is False
+    +
+    +def test_resets_after_window():
+    +    limiter = RateLimiter(max_attempts=1, window_seconds=1)
+    +    assert limiter.is_allowed("user_1") is True
+    +    assert limiter.is_allowed("user_1") is False
+    +    time.sleep(1.1)
+    +    assert limiter.is_allowed("user_1") is True
+    ```
+
+
+rubric:
+  context: |
+    The diff does two things: (1) refactors RateLimiter by extracting the window-pruning
+    logic into a private _prune_window method and renaming the attribute to _attempts to
+    signal it is internal; (2) adds a new test file covering the two core behaviours
+    (max attempts enforcement and window reset). The motivation is readability and
+    testability — not a bug fix and not a new user-facing feature. A good commit message
+    uses Conventional Commits format, accurately captures both changes, and explains the
+    motivation briefly without padding.
+
+  criteria:
+    - name: Conventional Commits format
+      points: 25
+      levels:
+        - range: [0, 10]
+          description: "Does not follow Conventional Commits — no type prefix, or format is wrong (e.g. missing colon, subject and body not separated by blank line)."
+        - range: [11, 18]
+          description: "Format mostly correct but minor issues — e.g. wrong type (fix instead of refactor), missing scope, or body runs directly after subject."
+        - range: [19, 25]
+          description: "Subject line is `refactor(auth): ...` or equivalent correct type/scope, ≤72 chars, followed by a blank line and a body."
+
+    - name: Accuracy — what changed
+      points: 35
+      levels:
+        - range: [0, 14]
+          description: "Misses one or both key changes — either the extraction of _prune_window or the addition of tests is not mentioned."
+        - range: [15, 24]
+          description: "Mentions both changes but describes one inaccurately — e.g. calls it a bug fix, omits the attribute rename, or conflates the two changes."
+        - range: [25, 35]
+          description: "Accurately captures both: the refactor (extract _prune_window, rename attribute to _attempts) and the new test file covering max-attempts and window-reset behaviour."
+
+    - name: Explains the why
+      points: 25
+      levels:
+        - range: [0, 10]
+          description: "Body only restates what changed with no motivation — reads like a diff summary, not a commit message."
+        - range: [11, 17]
+          description: "Hints at motivation (e.g. 'for clarity') but does not say why that matters or what problem the refactor solves."
+        - range: [18, 25]
+          description: "Body clearly states the motivation: improving readability, isolating the pruning logic for testability, or signalling that _attempts is internal — not just what but why."
+
+    - name: Conciseness
+      points: 15
+      levels:
+        - range: [0, 6]
+          description: "Subject line exceeds 72 characters, or the body has unnecessary filler ('In this commit we...', 'Please note that...', long restatements of the diff)."
+        - range: [7, 11]
+          description: "Subject fits but body has some padding or repeats information already clear from the subject."
+        - range: [12, 15]
+          description: "Every sentence earns its place. Subject ≤72 chars, body is tight — says what it needs to and stops."

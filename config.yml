@@ -10,7 +10,8 @@ runner_max_tokens: 4096             # maximum number of tokens the runner model 
 judge_temperature: 0.1              # the temperature setting for the judge model. Higher values (e.g., 0.7) result in more creative and varied evaluations, while lower values (e.g., 0.0) produce more deterministic and focused evaluations.
 judge_max_tokens: 1024              # maximum number of tokens the judge model can generate. Rarely needs to exceed 1024 since the output is structured JSON.
 
-skill_path: skills/example-skill/SKILL.md  # path to the SKILL.md to benchmark (each skill lives in its own folder under skills/)
+skill_path: skills/caveman/SKILL.md        # path to the SKILL.md to benchmark (each skill lives in its own folder under skills/)
 tasks_dir: tasks                    # directory containing task YAML files to test the skill on.
 results_dir: results                # directory where results will be written
 confidence_level: 0.95              # confidence level for the confidence intervals (e.g., 0.95 for 95%)
+min_meaningful_delta: 5.0           # minimum mean-score difference (in rubric points) to distinguish "inconclusive" (real effect, needs more runs) from "no_difference" (means too close to matter)

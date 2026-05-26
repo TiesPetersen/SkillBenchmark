@@ -1,0 +1,67 @@
+name: "Explain a Python bug to a developer"
+version: "1.0"
+
+task:
+  context: |
+    You are a senior engineer doing a code review. A colleague has flagged the following
+    Python function as behaving unexpectedly and asked you to explain what is going wrong
+    and how to fix it.
+
+  description: |
+    A junior developer wrote the following function and is confused by the output:
+
+    ```python
+    def add_item(item, cart=[]):
+        cart.append(item)
+        return cart
+
+    print(add_item("apple"))   # ['apple']
+    print(add_item("banana"))  # ['apple', 'banana']   <-- unexpected
+    print(add_item("cherry"))  # ['apple', 'banana', 'cherry']  <-- very unexpected
+    ```
+
+    They expected each call to return a fresh list containing only the item they passed.
+    Instead, items accumulate across calls.
+
+    Explain clearly what is causing this behaviour and provide a corrected version of the
+    function. Write your response as plain text or markdown.
+
+
+rubric:
+  context: |
+    The bug is the classic Python mutable default argument trap. The list `cart=[]` is
+    created once at function definition time and reused across all calls that do not pass
+    an explicit `cart` argument. The correct fix is to use `None` as the default and
+    initialise a new list inside the function body. A good explanation makes the root
+    cause clear and gives a working, idiomatic fix.
+
+  criteria:
+    - name: Root cause accuracy
+      points: 40
+      levels:
+        - range: [0, 15]
+          description: "Root cause missing or wrong — e.g. blames append, scope, or closures instead of mutable default argument evaluation."
+        - range: [16, 28]
+          description: "Identifies that the default list persists across calls but does not explain why (defined once at function definition, not per call)."
+        - range: [29, 40]
+          description: "Correctly explains that default argument values are evaluated once when the function is defined, so the same list object is reused on every call that omits the argument."
+
+    - name: Fix correctness
+      points: 35
+      levels:
+        - range: [0, 14]
+          description: "Fix is absent, incorrect, or introduces a new problem (e.g. using a global, copying inside append)."
+        - range: [15, 24]
+          description: "Fix works but is non-idiomatic — e.g. uses a sentinel other than None, or clears the list at the start instead of creating a new one."
+        - range: [25, 35]
+          description: "Fix is correct and idiomatic: default is None, a new list is created inside the function body when cart is None."
+
+    - name: Clarity for a developer
+      points: 25
+      levels:
+        - range: [0, 10]
+          description: "Explanation is confusing, assumes too much, or buries the key insight in jargon."
+        - range: [11, 17]
+          description: "Explanation is correct but verbose or structured in a way that makes the insight hard to locate quickly."
+        - range: [18, 25]
+          description: "Explanation is direct and easy to follow for a developer — the cause and fix are both immediately clear without unnecessary padding."
