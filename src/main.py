@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+from datetime import datetime
 from typing import Optional
 
 import anthropic
@@ -9,7 +10,7 @@ _FRONTMATTER_NAME_RE = re.compile(r"^---\s*\nname:\s*(.+?)\s*\n", re.DOTALL)
 
 from .config import load_config
 from .evaluator import evaluate_output
-from .report import RunPair, write_results
+from .report import RunPair, TaskSummary, create_run_dir, write_task_results, write_overview
 from .runner import run_task
 from .stats import compute_stats, verdict
 from .task import load_all_tasks
@@ -45,6 +46,8 @@ def main() -> None:
 
     n_runs = config.number_of_runs_per_task
     n_judges = config.number_of_judges_per_run
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = create_run_dir(config.results_dir, skill_name, timestamp)
 
     print(f"Tasks:  {len(tasks)}")
     print(f"Runs:   {n_runs} per task")
@@ -52,6 +55,7 @@ def main() -> None:
     print(f"Runner: {config.runner_model}  (temperature={config.runner_temperature})")
     print(f"Judge:  {config.judge_model}  (temperature={config.judge_temperature})")
     print(f"Skill:  {skill_name}")
+    print(f"Output: {run_dir}")
     print()
 
     _VERDICT_LABELS = {
@@ -59,6 +63,8 @@ def main() -> None:
         "baseline_better": "BASELINE BETTER",
         "inconclusive":    "INCONCLUSIVE",
     }
+
+    summaries: list[TaskSummary] = []
 
     for task in tasks:
         print(f"[Task] {task.name}")
@@ -89,9 +95,21 @@ def main() -> None:
         ns = compute_stats([r.without_skill.total_score for r in run_pairs], config.confidence_level)
         v = verdict(ws, ns)
 
-        json_path, md_path = write_results(task, run_pairs, config.confidence_level, config.results_dir, skill_name)
+        json_path, md_path, summary = write_task_results(task, run_pairs, config.confidence_level, run_dir, skill_name, timestamp)
+        summaries.append(summary)
 
         print(f"  => {_VERDICT_LABELS[v]}  (with: {ws.mean:.1f} | without: {ns.mean:.1f})")
-        print(f"     {json_path}")
-        print(f"     {md_path}")
         print()
+
+    config_snapshot = {
+        "runner_model": config.runner_model,
+        "judge_model": config.judge_model,
+        "number_of_runs_per_task": config.number_of_runs_per_task,
+        "number_of_judges_per_run": config.number_of_judges_per_run,
+        "runner_temperature": config.runner_temperature,
+        "confidence_level": config.confidence_level,
+    }
+    overview_path = write_overview(summaries, run_dir, skill_name, timestamp, config_snapshot)
+
+    print(f"Results: {run_dir}")
+    print(f"Overview: {overview_path}")
