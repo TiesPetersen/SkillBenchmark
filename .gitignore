@@ -9,8 +9,9 @@
 # Ignore Python cache and virtual environment
 __pycache__/
 *.pyc
-.venv/
+venv/
 
 
 # Ignore local ideation / AI context files
 /local
+.claude/
